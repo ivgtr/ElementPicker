@@ -10,9 +10,21 @@ export default defineManifest({
   permissions: ['activeTab', 'scripting', 'clipboardWrite'],
   action: {
     default_title: 'Pick an element',
+    default_icon: {
+      '16': 'icon.png',
+      '32': 'icon.png',
+      '48': 'icon.png',
+      '128': 'icon.png',
+    },
   },
   background: {
     service_worker: 'src/background/index.ts',
     type: 'module',
+  },
+  icons: {
+    '16': 'icon.png',
+    '32': 'icon.png',
+    '48': 'icon.png',
+    '128': 'icon.png',
   },
 });
