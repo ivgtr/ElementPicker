@@ -1,5 +1,11 @@
 import { copyTextToClipboard, createCopyText } from './copy';
 import { getSelectableChild, getSelectableParent, isSelectableElement } from './selection';
+import {
+  DEFAULT_PICKER_SETTINGS,
+  loadPickerSettings,
+  savePickerSettings,
+  type PickerSettings,
+} from './settings';
 import { PickerUi } from './ui';
 import type { CopyFormat } from '@/shared/messages';
 
@@ -10,10 +16,26 @@ export class PickerController {
   private ui: PickerUi | null = null;
   private hoveredElement: HTMLElement | null = null;
   private selectedElement: HTMLElement | null = null;
+  private settings: PickerSettings = DEFAULT_PICKER_SETTINGS;
+  private stateBeforeSettings: Extract<PickerState, 'selecting' | 'selected'> = 'selecting';
+  private startRequestId = 0;
 
-  start(): void {
+  async start(): Promise<void> {
+    const requestId = (this.startRequestId += 1);
+
     if (this.ui) {
       this.cleanup();
+    }
+
+    try {
+      this.settings = await loadPickerSettings();
+    } catch (error) {
+      console.warn('[Element Picker] Failed to load settings.', error);
+      this.settings = DEFAULT_PICKER_SETTINGS;
+    }
+
+    if (requestId !== this.startRequestId) {
+      return;
     }
 
     this.state = 'selecting';
@@ -45,7 +67,15 @@ export class PickerController {
       return;
     }
 
-    if (this.state === 'selected' || this.state === 'previewing' || this.state === 'settings') {
+    if (this.state === 'settings') {
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      this.closeSettingsMenu();
+      return;
+    }
+
+    if (this.state === 'selected' || this.state === 'previewing') {
       event.preventDefault();
       event.stopPropagation();
       event.stopImmediatePropagation();
@@ -123,6 +153,7 @@ export class PickerController {
           getSelectableParent(this.selectedElement, this.getSelectionOptions()) !== null,
         canSelectChild:
           getSelectableChild(this.selectedElement, this.getSelectionOptions()) !== null,
+        defaultFormat: this.settings.defaultFormat,
       },
       {
         onSelectFormat: (format) => {
@@ -130,9 +161,72 @@ export class PickerController {
         },
         onSelectParent: () => this.moveSelection('parent'),
         onSelectChild: () => this.moveSelection('child'),
+        onOpenSettings: () => this.openSettingsMenu(),
         onCancel: () => this.cancel(),
       }
     );
+  }
+
+  private openSettingsMenu(): void {
+    if (!this.selectedElement || this.state !== 'selected') {
+      return;
+    }
+
+    this.stateBeforeSettings = this.state;
+    this.state = 'settings';
+    this.showSettingsMenu();
+  }
+
+  private showSettingsMenu(): void {
+    if (!this.selectedElement) {
+      return;
+    }
+
+    this.ui?.showSettingsMenu(
+      { target: this.selectedElement },
+      { defaultFormat: this.settings.defaultFormat },
+      {
+        onSelectDefaultFormat: (format) => {
+          void this.updateDefaultFormat(format);
+        },
+        onClose: () => this.closeSettingsMenu(),
+      }
+    );
+  }
+
+  private async updateDefaultFormat(defaultFormat: CopyFormat): Promise<void> {
+    if (this.state !== 'settings') {
+      return;
+    }
+
+    const previousSettings = this.settings;
+    this.settings = { ...this.settings, defaultFormat };
+    this.showSettingsMenu();
+
+    try {
+      await savePickerSettings(this.settings);
+      this.ui?.showToast('Settings saved.', 'success');
+    } catch (error) {
+      console.warn('[Element Picker] Failed to save settings.', error);
+      this.settings = previousSettings;
+      this.showSettingsMenu();
+      this.ui?.showToast('Failed to save settings.', 'error');
+    }
+  }
+
+  private closeSettingsMenu(): void {
+    if (this.state !== 'settings') {
+      return;
+    }
+
+    this.state = this.stateBeforeSettings;
+
+    if (this.state === 'selected') {
+      this.showSelectedMenu();
+      return;
+    }
+
+    this.ui?.hidePanel();
   }
 
   private moveSelection(direction: 'parent' | 'child'): void {

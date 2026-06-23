@@ -21,5 +21,5 @@ const startPicker = async (): Promise<void> => {
   const { PickerController } = await import('./picker-controller');
 
   pickerWindow[globalKey] ??= new PickerController();
-  pickerWindow[globalKey]?.start();
+  await pickerWindow[globalKey]?.start();
 };

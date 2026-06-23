@@ -17,6 +17,7 @@ export type SelectedMenuCallbacks = {
   onSelectFormat: (format: CopyFormat) => void;
   onSelectParent: () => void;
   onSelectChild: () => void;
+  onOpenSettings: () => void;
   onCancel: () => void;
 };
 
@@ -24,6 +25,16 @@ export type SelectedMenuState = {
   targetLabel: string;
   canSelectParent: boolean;
   canSelectChild: boolean;
+  defaultFormat: CopyFormat;
+};
+
+export type SettingsMenuCallbacks = {
+  onSelectDefaultFormat: (format: CopyFormat) => void;
+  onClose: () => void;
+};
+
+export type SettingsMenuState = {
+  defaultFormat: CopyFormat;
 };
 
 export type PickerPanelPlacement = {
@@ -110,9 +121,22 @@ export class PickerUi {
         const button = document.createElement('button');
         button.type = 'button';
         button.textContent = FORMAT_LABELS[format];
+        if (format === menuState.defaultFormat) {
+          button.setAttribute('aria-current', 'true');
+          button.dataset.defaultFormat = 'true';
+        }
         button.addEventListener('click', () => callbacks.onSelectFormat(format));
         panel.append(button);
       }
+
+      const settingsButton = document.createElement('button');
+      settingsButton.type = 'button';
+      settingsButton.textContent = '⚙';
+      settingsButton.setAttribute('aria-label', 'Settings');
+      settingsButton.dataset.variant = 'secondary';
+      settingsButton.dataset.iconButton = 'true';
+      settingsButton.addEventListener('click', callbacks.onOpenSettings);
+      panel.append(settingsButton);
 
       const cancelButton = document.createElement('button');
       cancelButton.type = 'button';
@@ -120,6 +144,40 @@ export class PickerUi {
       cancelButton.dataset.variant = 'secondary';
       cancelButton.addEventListener('click', callbacks.onCancel);
       panel.append(cancelButton);
+    });
+  }
+
+  showSettingsMenu(
+    placement: PickerPanelPlacement,
+    menuState: SettingsMenuState,
+    callbacks: SettingsMenuCallbacks
+  ): void {
+    this.showPanel(placement, (panel) => {
+      panel.dataset.layout = 'settings';
+
+      const heading = document.createElement('div');
+      heading.textContent = 'Default format';
+      heading.setAttribute('data-element-picker-settings-heading', '');
+      panel.append(heading);
+
+      for (const format of Object.keys(FORMAT_LABELS) as CopyFormat[]) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.textContent = FORMAT_LABELS[format];
+        if (format === menuState.defaultFormat) {
+          button.setAttribute('aria-pressed', 'true');
+          button.dataset.defaultFormat = 'true';
+        }
+        button.addEventListener('click', () => callbacks.onSelectDefaultFormat(format));
+        panel.append(button);
+      }
+
+      const closeButton = document.createElement('button');
+      closeButton.type = 'button';
+      closeButton.textContent = 'Close';
+      closeButton.dataset.variant = 'secondary';
+      closeButton.addEventListener('click', callbacks.onClose);
+      panel.append(closeButton);
     });
   }
 
@@ -249,6 +307,13 @@ const createStyleElement = (): HTMLStyleElement => {
       white-space: nowrap;
     }
 
+    [${PANEL_ATTRIBUTE}] [data-element-picker-settings-heading] {
+      color: #111827;
+      font: 600 12px/1 ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      letter-spacing: 0;
+      white-space: nowrap;
+    }
+
     [${PANEL_ATTRIBUTE}] button {
       min-width: 44px;
       min-height: 30px;
@@ -260,6 +325,18 @@ const createStyleElement = (): HTMLStyleElement => {
       font: 600 12px/1 ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       letter-spacing: 0;
       cursor: pointer;
+    }
+
+    [${PANEL_ATTRIBUTE}] button[data-icon-button="true"] {
+      min-width: 30px;
+      width: 30px;
+      padding: 0;
+      font-size: 14px;
+    }
+
+    [${PANEL_ATTRIBUTE}] button[data-default-format="true"] {
+      outline: 2px solid #f59e0b;
+      outline-offset: 2px;
     }
 
     [${PANEL_ATTRIBUTE}] button:disabled,
