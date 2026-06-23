@@ -103,20 +103,6 @@ export class PickerUi {
       label.setAttribute('data-element-picker-target-label', '');
       panel.append(label);
 
-      const parentButton = document.createElement('button');
-      parentButton.type = 'button';
-      parentButton.textContent = 'Parent';
-      parentButton.disabled = !menuState.canSelectParent;
-      parentButton.addEventListener('click', callbacks.onSelectParent);
-      panel.append(parentButton);
-
-      const childButton = document.createElement('button');
-      childButton.type = 'button';
-      childButton.textContent = 'Child';
-      childButton.disabled = !menuState.canSelectChild;
-      childButton.addEventListener('click', callbacks.onSelectChild);
-      panel.append(childButton);
-
       for (const format of Object.keys(FORMAT_LABELS) as CopyFormat[]) {
         const button = document.createElement('button');
         button.type = 'button';
@@ -124,10 +110,31 @@ export class PickerUi {
         if (format === menuState.defaultFormat) {
           button.setAttribute('aria-current', 'true');
           button.dataset.defaultFormat = 'true';
+          button.title = 'Default format';
         }
         button.addEventListener('click', () => callbacks.onSelectFormat(format));
         panel.append(button);
       }
+
+      const parentButton = document.createElement('button');
+      parentButton.type = 'button';
+      parentButton.textContent = 'Parent';
+      parentButton.disabled = !menuState.canSelectParent;
+      parentButton.title = menuState.canSelectParent
+        ? 'Select parent element'
+        : 'No selectable parent';
+      parentButton.dataset.variant = 'secondary';
+      parentButton.addEventListener('click', callbacks.onSelectParent);
+      panel.append(parentButton);
+
+      const childButton = document.createElement('button');
+      childButton.type = 'button';
+      childButton.textContent = 'Child';
+      childButton.disabled = !menuState.canSelectChild;
+      childButton.title = menuState.canSelectChild ? 'Select child element' : 'No selectable child';
+      childButton.dataset.variant = 'secondary';
+      childButton.addEventListener('click', callbacks.onSelectChild);
+      panel.append(childButton);
 
       const settingsButton = document.createElement('button');
       settingsButton.type = 'button';
@@ -174,7 +181,7 @@ export class PickerUi {
 
       const closeButton = document.createElement('button');
       closeButton.type = 'button';
-      closeButton.textContent = 'Close';
+      closeButton.textContent = 'Cancel';
       closeButton.dataset.variant = 'secondary';
       closeButton.addEventListener('click', callbacks.onClose);
       panel.append(closeButton);
@@ -288,7 +295,7 @@ const createStyleElement = (): HTMLStyleElement => {
       display: inline-flex;
       align-items: center;
       gap: 4px;
-      padding: 6px;
+      padding: 5px;
       border: 1px solid rgba(15, 23, 42, 0.14);
       border-radius: 8px;
       background: #ffffff;
@@ -315,9 +322,9 @@ const createStyleElement = (): HTMLStyleElement => {
     }
 
     [${PANEL_ATTRIBUTE}] button {
-      min-width: 44px;
-      min-height: 30px;
-      padding: 0 10px;
+      min-width: 40px;
+      min-height: 28px;
+      padding: 0 9px;
       border: 0;
       border-radius: 6px;
       background: #111827;
@@ -335,15 +342,18 @@ const createStyleElement = (): HTMLStyleElement => {
     }
 
     [${PANEL_ATTRIBUTE}] button[data-default-format="true"] {
-      outline: 2px solid #f59e0b;
-      outline-offset: 2px;
+      box-shadow:
+        inset 0 0 0 1px #f59e0b,
+        0 0 0 1px rgba(245, 158, 11, 0.35);
     }
 
     [${PANEL_ATTRIBUTE}] button:disabled,
     [${PANEL_ATTRIBUTE}] button:disabled:hover {
       background: #e5e7eb;
       color: #9ca3af;
+      box-shadow: inset 0 0 0 1px #d1d5db;
       cursor: not-allowed;
+      opacity: 1;
     }
 
     [${PANEL_ATTRIBUTE}] button:hover {

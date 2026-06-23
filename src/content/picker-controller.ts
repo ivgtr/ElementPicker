@@ -9,7 +9,7 @@ import {
 import { PickerUi } from './ui';
 import type { CopyFormat } from '@/shared/messages';
 
-type PickerState = 'idle' | 'selecting' | 'selected' | 'previewing' | 'settings' | 'copying';
+type PickerState = 'idle' | 'selecting' | 'selected' | 'settings' | 'copying';
 
 export class PickerController {
   private state: PickerState = 'idle';
@@ -75,7 +75,7 @@ export class PickerController {
       return;
     }
 
-    if (this.state === 'selected' || this.state === 'previewing') {
+    if (this.state === 'selected') {
       event.preventDefault();
       event.stopPropagation();
       event.stopImmediatePropagation();
@@ -119,6 +119,13 @@ export class PickerController {
 
     event.preventDefault();
     event.stopPropagation();
+    event.stopImmediatePropagation();
+
+    if (this.state === 'settings') {
+      this.closeSettingsMenu();
+      return;
+    }
+
     this.cancel();
   };
 
@@ -312,7 +319,6 @@ export class PickerController {
   private hasConfirmedSelection(): boolean {
     return (
       this.state === 'selected' ||
-      this.state === 'previewing' ||
       this.state === 'settings' ||
       this.state === 'copying'
     );
