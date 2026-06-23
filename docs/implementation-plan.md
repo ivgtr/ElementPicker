@@ -46,7 +46,7 @@
 既存エントリポイント:
 
 - `src/background/index.ts`
-- `src/content/index.ts`
+- `src/content/content-script.ts`
 - `src/shared/messages.ts`
 - `manifest.config.ts`
 
@@ -57,7 +57,7 @@
 ```text
 Browser action click
   -> background service worker
-  -> inject or activate content script
+  -> activate manifest-declared content script
   -> page selection mode
   -> format selection UI
   -> clipboard write
@@ -69,15 +69,15 @@ Browser action click
 責務:
 
 - 拡張機能アイコンのクリックを受け取る。
-- 現在のタブに対して content script を実行可能にする。
-- content script に選択モード開始メッセージを送る。
-- content script が未注入の場合は `chrome.scripting.executeScript` で注入する。
+- 現在のタブの content script に選択モード開始メッセージを送る。
+- content script が動作していないページでは警告に留める。
 
 設計方針:
 
 - background は選択状態を持たない。
 - ページ DOM に依存する処理は content script に閉じ込める。
-- タブ URL が Chrome 内部ページなど実行不可の場合は何もしないか、ログに留める。
+- content script は `manifest.config.ts` の `content_scripts` で宣言し、CRXJS に処理させる。
+- タブ URL が Chrome 内部ページなど content script 対象外の場合は何もしないか、ログに留める。
 
 ### Content Script
 
@@ -224,7 +224,7 @@ cleanup:
 
 想定する失敗:
 
-- content script を注入できないページ
+- content script が動作しないページ
 - クリップボード書き込み失敗
 - 選択要素が存在しない
 - 変換結果が空
@@ -232,7 +232,7 @@ cleanup:
 対応方針:
 
 - ページ上で発生した失敗は content script のトーストで通知する。
-- 注入不可ページなど content script が動作しないケースは、初期実装では background の console warning に留める。
+- content script 対象外ページなど content script が動作しないケースは、初期実装では background の console warning に留める。
 - ユーザーが選択範囲を確認してからコピーする設計を維持し、意図しない秘匿情報のコピーを防ぐ補助にする。
 
 ## ファイル構成案
@@ -244,7 +244,7 @@ src/
   background/
     index.ts
   content/
-    index.ts
+    content-script.ts
     picker-controller.ts
     copy.ts
     ui.ts
@@ -254,8 +254,8 @@ src/
 
 各ファイルの責務:
 
-- `background/index.ts`: アイコンクリック、script 注入、開始メッセージ送信
-- `content/index.ts`: メッセージ受信、controller 起動
+- `background/index.ts`: アイコンクリック、開始メッセージ送信
+- `content/content-script.ts`: メッセージ受信、controller 起動
 - `content/picker-controller.ts`: 選択状態、イベント、cleanup
 - `content/copy.ts`: HTML、Markdown、Text の変換と clipboard write
 - `content/ui.ts`: overlay、format menu、toast
@@ -264,7 +264,7 @@ src/
 ## 実装順序
 
 1. `shared/messages.ts` にメッセージ型とコピー形式型を定義する。
-2. background から content script を注入し、開始メッセージを送れるようにする。
+2. manifest で content script を宣言し、background から開始メッセージを送れるようにする。
 3. content script で開始メッセージを受け取り、選択モードに入れるようにする。
 4. hover overlay を実装する。
 5. click 確定とページイベント抑止を実装する。

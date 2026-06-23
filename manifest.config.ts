@@ -7,7 +7,7 @@ export default defineManifest({
   version: packageJson.version,
   description:
     'Select an element on the current page and copy it as HTML, Markdown, or plain text.',
-  permissions: ['activeTab', 'scripting', 'clipboardWrite'],
+  permissions: ['activeTab', 'clipboardWrite'],
   action: {
     default_title: 'Pick an element',
     default_icon: {
@@ -21,6 +21,13 @@ export default defineManifest({
     service_worker: 'src/background/index.ts',
     type: 'module',
   },
+  content_scripts: [
+    {
+      matches: ['http://*/*', 'https://*/*'],
+      js: ['src/content/content-script.ts'],
+      run_at: 'document_idle',
+    },
+  ],
   icons: {
     '16': 'icon.png',
     '32': 'icon.png',

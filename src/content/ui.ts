@@ -1,0 +1,249 @@
+import type { CopyFormat } from '@/shared/messages';
+
+const ROOT_ATTRIBUTE = 'data-element-picker-root';
+const OVERLAY_ATTRIBUTE = 'data-element-picker-overlay';
+const MENU_ATTRIBUTE = 'data-element-picker-menu';
+const TOAST_ATTRIBUTE = 'data-element-picker-toast';
+
+const FORMAT_LABELS: Record<CopyFormat, string> = {
+  html: 'HTML',
+  markdown: 'Markdown',
+  text: 'Text',
+};
+
+type ToastKind = 'success' | 'error' | 'info';
+
+export type FormatMenuHandlers = {
+  onSelect: (format: CopyFormat) => void;
+  onCancel: () => void;
+};
+
+export class PickerUi {
+  private readonly root: HTMLDivElement;
+  private readonly shadowRoot: ShadowRoot;
+  private overlay: HTMLDivElement | null = null;
+  private menu: HTMLDivElement | null = null;
+  private toast: HTMLDivElement | null = null;
+  private toastTimer: number | null = null;
+
+  constructor() {
+    this.root = document.createElement('div');
+    this.root.setAttribute(ROOT_ATTRIBUTE, '');
+    this.root.style.all = 'initial';
+
+    this.shadowRoot = this.root.attachShadow({ mode: 'closed' });
+    this.shadowRoot.append(createStyleElement());
+    document.documentElement.append(this.root);
+  }
+
+  isPickerNode(node: Node | null): boolean {
+    return node === this.root || (node instanceof Node && this.root.contains(node));
+  }
+
+  isPickerEvent(event: Event): boolean {
+    return event.composedPath().includes(this.root);
+  }
+
+  showOverlay(target: HTMLElement): void {
+    if (!this.overlay) {
+      this.overlay = document.createElement('div');
+      this.overlay.setAttribute(OVERLAY_ATTRIBUTE, '');
+      this.shadowRoot.append(this.overlay);
+    }
+
+    const rect = target.getBoundingClientRect();
+    Object.assign(this.overlay.style, {
+      display: rect.width > 0 && rect.height > 0 ? 'block' : 'none',
+      left: `${Math.max(rect.left, 0)}px`,
+      top: `${Math.max(rect.top, 0)}px`,
+      width: `${Math.max(rect.width, 0)}px`,
+      height: `${Math.max(rect.height, 0)}px`,
+    });
+  }
+
+  hideOverlay(): void {
+    this.overlay?.remove();
+    this.overlay = null;
+  }
+
+  showFormatMenu(
+    target: HTMLElement,
+    position: { x: number; y: number },
+    handlers: FormatMenuHandlers
+  ): void {
+    this.hideFormatMenu();
+
+    const menu = document.createElement('div');
+    menu.setAttribute(MENU_ATTRIBUTE, '');
+    stopPageEventsInside(menu);
+
+    for (const format of Object.keys(FORMAT_LABELS) as CopyFormat[]) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.textContent = FORMAT_LABELS[format];
+      button.addEventListener('click', () => handlers.onSelect(format));
+      menu.append(button);
+    }
+
+    const cancelButton = document.createElement('button');
+    cancelButton.type = 'button';
+    cancelButton.textContent = 'Cancel';
+    cancelButton.dataset.variant = 'secondary';
+    cancelButton.addEventListener('click', handlers.onCancel);
+    menu.append(cancelButton);
+
+    this.shadowRoot.append(menu);
+    this.menu = menu;
+
+    const targetRect = target.getBoundingClientRect();
+    const desiredX = Number.isFinite(position.x) ? position.x : targetRect.left;
+    const desiredY = Number.isFinite(position.y) ? position.y : targetRect.bottom + 8;
+
+    placeWithinViewport(menu, desiredX, desiredY);
+  }
+
+  hideFormatMenu(): void {
+    this.menu?.remove();
+    this.menu = null;
+  }
+
+  showToast(message: string, kind: ToastKind): void {
+    this.hideToast();
+
+    const toast = document.createElement('div');
+    toast.setAttribute(TOAST_ATTRIBUTE, '');
+    toast.dataset.kind = kind;
+    toast.textContent = message;
+
+    this.shadowRoot.append(toast);
+    this.toast = toast;
+    this.toastTimer = window.setTimeout(() => this.hideToast(), 2200);
+  }
+
+  hideToast(): void {
+    if (this.toastTimer !== null) {
+      window.clearTimeout(this.toastTimer);
+      this.toastTimer = null;
+    }
+
+    this.toast?.remove();
+    this.toast = null;
+  }
+
+  destroy(): void {
+    this.hideToast();
+    this.hideFormatMenu();
+    this.hideOverlay();
+    this.root.remove();
+  }
+}
+
+const placeWithinViewport = (element: HTMLElement, x: number, y: number): void => {
+  const margin = 8;
+  const rect = element.getBoundingClientRect();
+  const left = Math.min(Math.max(x, margin), window.innerWidth - rect.width - margin);
+  const top = Math.min(Math.max(y, margin), window.innerHeight - rect.height - margin);
+
+  Object.assign(element.style, {
+    left: `${Math.max(left, margin)}px`,
+    top: `${Math.max(top, margin)}px`,
+  });
+};
+
+const stopPageEventsInside = (element: HTMLElement): void => {
+  for (const eventName of ['pointerdown', 'pointerup', 'mousedown', 'mouseup', 'click']) {
+    element.addEventListener(eventName, (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+    });
+  }
+};
+
+const createStyleElement = (): HTMLStyleElement => {
+  const style = document.createElement('style');
+
+  style.textContent = `
+    :host {
+      color-scheme: light;
+      font-family:
+        Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    [${OVERLAY_ATTRIBUTE}] {
+      position: fixed;
+      z-index: 2147483646;
+      box-sizing: border-box;
+      border: 2px solid #dc2626;
+      background: rgba(220, 38, 38, 0.08);
+      box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.9);
+      pointer-events: none;
+    }
+
+    [${MENU_ATTRIBUTE}] {
+      position: fixed;
+      z-index: 2147483647;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 6px;
+      border: 1px solid rgba(15, 23, 42, 0.14);
+      border-radius: 8px;
+      background: #ffffff;
+      box-shadow:
+        0 16px 40px rgba(15, 23, 42, 0.18),
+        0 2px 8px rgba(15, 23, 42, 0.1);
+    }
+
+    [${MENU_ATTRIBUTE}] button {
+      min-width: 44px;
+      min-height: 30px;
+      padding: 0 10px;
+      border: 0;
+      border-radius: 6px;
+      background: #111827;
+      color: #ffffff;
+      font: 600 12px/1 ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      letter-spacing: 0;
+      cursor: pointer;
+    }
+
+    [${MENU_ATTRIBUTE}] button:hover {
+      background: #374151;
+    }
+
+    [${MENU_ATTRIBUTE}] button[data-variant="secondary"] {
+      background: #f3f4f6;
+      color: #111827;
+    }
+
+    [${MENU_ATTRIBUTE}] button[data-variant="secondary"]:hover {
+      background: #e5e7eb;
+    }
+
+    [${TOAST_ATTRIBUTE}] {
+      position: fixed;
+      right: 16px;
+      bottom: 16px;
+      z-index: 2147483647;
+      max-width: min(360px, calc(100vw - 32px));
+      box-sizing: border-box;
+      padding: 10px 12px;
+      border-radius: 8px;
+      background: #111827;
+      color: #ffffff;
+      box-shadow: 0 16px 40px rgba(15, 23, 42, 0.18);
+      font: 500 13px/1.4 ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      letter-spacing: 0;
+    }
+
+    [${TOAST_ATTRIBUTE}][data-kind="success"] {
+      background: #166534;
+    }
+
+    [${TOAST_ATTRIBUTE}][data-kind="error"] {
+      background: #991b1b;
+    }
+  `;
+
+  return style;
+};
