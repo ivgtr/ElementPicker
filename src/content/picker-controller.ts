@@ -1,4 +1,5 @@
 import { copyTextToClipboard, createCopyText } from './copy';
+import { getSelectableChild, getSelectableParent, isSelectableElement } from './selection';
 import { PickerUi } from './ui';
 import type { CopyFormat } from '@/shared/messages';
 
@@ -117,12 +118,41 @@ export class PickerController {
     this.ui?.showSelectedMenu(
       { target: this.selectedElement, position },
       {
+        targetLabel: createElementLabel(this.selectedElement),
+        canSelectParent:
+          getSelectableParent(this.selectedElement, this.getSelectionOptions()) !== null,
+        canSelectChild:
+          getSelectableChild(this.selectedElement, this.getSelectionOptions()) !== null,
+      },
+      {
         onSelectFormat: (format) => {
           void this.copySelection(format);
         },
+        onSelectParent: () => this.moveSelection('parent'),
+        onSelectChild: () => this.moveSelection('child'),
         onCancel: () => this.cancel(),
       }
     );
+  }
+
+  private moveSelection(direction: 'parent' | 'child'): void {
+    if (!this.selectedElement || this.state !== 'selected') {
+      return;
+    }
+
+    const nextElement =
+      direction === 'parent'
+        ? getSelectableParent(this.selectedElement, this.getSelectionOptions())
+        : getSelectableChild(this.selectedElement, this.getSelectionOptions());
+
+    if (!nextElement) {
+      this.showSelectedMenu();
+      return;
+    }
+
+    this.selectedElement = nextElement;
+    this.ui?.showOverlay(nextElement);
+    this.showSelectedMenu();
   }
 
   private async copySelection(format: CopyFormat): Promise<void> {
@@ -168,15 +198,17 @@ export class PickerController {
   }
 
   private findSelectableElement(target: Element | null): HTMLElement | null {
-    if (!(target instanceof HTMLElement) || this.ui?.isPickerNode(target)) {
+    if (!(target instanceof HTMLElement)) {
       return null;
     }
 
-    if (target === document.documentElement) {
-      return null;
-    }
+    return isSelectableElement(target, this.getSelectionOptions()) ? target : null;
+  }
 
-    return target;
+  private getSelectionOptions(): { isPickerNode: (node: Node | null) => boolean } {
+    return {
+      isPickerNode: (node) => this.ui?.isPickerNode(node) ?? false,
+    };
   }
 
   private shouldBlockPageEvents(): boolean {
@@ -221,3 +253,17 @@ export class PickerController {
     this.state = 'idle';
   }
 }
+
+const createElementLabel = (element: HTMLElement): string => {
+  const parts = [element.tagName.toLowerCase()];
+
+  if (element.id) {
+    parts.push(`#${element.id}`);
+  }
+
+  for (const className of Array.from(element.classList).slice(0, 2)) {
+    parts.push(`.${className}`);
+  }
+
+  return parts.join('');
+};

@@ -15,7 +15,15 @@ type ToastKind = 'success' | 'error' | 'info';
 
 export type SelectedMenuCallbacks = {
   onSelectFormat: (format: CopyFormat) => void;
+  onSelectParent: () => void;
+  onSelectChild: () => void;
   onCancel: () => void;
+};
+
+export type SelectedMenuState = {
+  targetLabel: string;
+  canSelectParent: boolean;
+  canSelectChild: boolean;
 };
 
 export type PickerPanelPlacement = {
@@ -73,8 +81,31 @@ export class PickerUi {
     this.overlay = null;
   }
 
-  showSelectedMenu(placement: PickerPanelPlacement, callbacks: SelectedMenuCallbacks): void {
+  showSelectedMenu(
+    placement: PickerPanelPlacement,
+    menuState: SelectedMenuState,
+    callbacks: SelectedMenuCallbacks
+  ): void {
     this.showPanel(placement, (panel) => {
+      const label = document.createElement('div');
+      label.textContent = menuState.targetLabel;
+      label.setAttribute('data-element-picker-target-label', '');
+      panel.append(label);
+
+      const parentButton = document.createElement('button');
+      parentButton.type = 'button';
+      parentButton.textContent = 'Parent';
+      parentButton.disabled = !menuState.canSelectParent;
+      parentButton.addEventListener('click', callbacks.onSelectParent);
+      panel.append(parentButton);
+
+      const childButton = document.createElement('button');
+      childButton.type = 'button';
+      childButton.textContent = 'Child';
+      childButton.disabled = !menuState.canSelectChild;
+      childButton.addEventListener('click', callbacks.onSelectChild);
+      panel.append(childButton);
+
       for (const format of Object.keys(FORMAT_LABELS) as CopyFormat[]) {
         const button = document.createElement('button');
         button.type = 'button';
@@ -208,6 +239,16 @@ const createStyleElement = (): HTMLStyleElement => {
         0 2px 8px rgba(15, 23, 42, 0.1);
     }
 
+    [${PANEL_ATTRIBUTE}] [data-element-picker-target-label] {
+      max-width: 180px;
+      overflow: hidden;
+      color: #111827;
+      font: 600 12px/1 ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      letter-spacing: 0;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
     [${PANEL_ATTRIBUTE}] button {
       min-width: 44px;
       min-height: 30px;
@@ -219,6 +260,13 @@ const createStyleElement = (): HTMLStyleElement => {
       font: 600 12px/1 ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       letter-spacing: 0;
       cursor: pointer;
+    }
+
+    [${PANEL_ATTRIBUTE}] button:disabled,
+    [${PANEL_ATTRIBUTE}] button:disabled:hover {
+      background: #e5e7eb;
+      color: #9ca3af;
+      cursor: not-allowed;
     }
 
     [${PANEL_ATTRIBUTE}] button:hover {
