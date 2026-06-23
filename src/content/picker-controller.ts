@@ -2,7 +2,7 @@ import { copyTextToClipboard, createCopyText } from './copy';
 import { PickerUi } from './ui';
 import type { CopyFormat } from '@/shared/messages';
 
-type PickerState = 'idle' | 'selecting' | 'format-selecting' | 'copying';
+type PickerState = 'idle' | 'selecting' | 'selected' | 'previewing' | 'settings' | 'copying';
 
 export class PickerController {
   private state: PickerState = 'idle';
@@ -44,7 +44,7 @@ export class PickerController {
       return;
     }
 
-    if (this.state === 'format-selecting') {
+    if (this.state === 'selected' || this.state === 'previewing' || this.state === 'settings') {
       event.preventDefault();
       event.stopPropagation();
       event.stopImmediatePropagation();
@@ -68,15 +68,7 @@ export class PickerController {
       return;
     }
 
-    this.selectedElement = target;
-    this.state = 'format-selecting';
-    this.ui?.showOverlay(target);
-    this.ui?.showFormatMenu(target, { x: event.clientX, y: event.clientY }, {
-      onSelect: (format) => {
-        void this.copySelection(format);
-      },
-      onCancel: () => this.cancel(),
-    });
+    this.confirmSelection(target, { x: event.clientX, y: event.clientY });
   };
 
   private readonly suppressPagePointerEvent = (event: MouseEvent): void => {
@@ -105,18 +97,41 @@ export class PickerController {
       return;
     }
 
-    if (this.state === 'format-selecting' && this.selectedElement) {
+    if (this.hasConfirmedSelection() && this.selectedElement) {
       this.ui?.showOverlay(this.selectedElement);
     }
   };
 
+  private confirmSelection(element: HTMLElement, position: { x: number; y: number }): void {
+    this.selectedElement = element;
+    this.state = 'selected';
+    this.ui?.showOverlay(element);
+    this.showSelectedMenu(position);
+  }
+
+  private showSelectedMenu(position?: { x: number; y: number }): void {
+    if (!this.selectedElement) {
+      return;
+    }
+
+    this.ui?.showSelectedMenu(
+      { target: this.selectedElement, position },
+      {
+        onSelectFormat: (format) => {
+          void this.copySelection(format);
+        },
+        onCancel: () => this.cancel(),
+      }
+    );
+  }
+
   private async copySelection(format: CopyFormat): Promise<void> {
-    if (!this.selectedElement || this.state !== 'format-selecting') {
+    if (!this.selectedElement || this.state !== 'selected') {
       return;
     }
 
     this.state = 'copying';
-    this.ui?.hideFormatMenu();
+    this.ui?.hidePanel();
 
     try {
       const text = createCopyText(this.selectedElement, format);
@@ -139,7 +154,7 @@ export class PickerController {
     const ui = this.ui;
 
     this.removeEventListeners();
-    ui?.hideFormatMenu();
+    ui?.hidePanel();
     ui?.hideOverlay();
     this.hoveredElement = null;
     this.selectedElement = null;
@@ -165,7 +180,16 @@ export class PickerController {
   }
 
   private shouldBlockPageEvents(): boolean {
-    return this.state === 'selecting' || this.state === 'format-selecting';
+    return this.state !== 'idle' && this.state !== 'copying';
+  }
+
+  private hasConfirmedSelection(): boolean {
+    return (
+      this.state === 'selected' ||
+      this.state === 'previewing' ||
+      this.state === 'settings' ||
+      this.state === 'copying'
+    );
   }
 
   private addEventListeners(): void {

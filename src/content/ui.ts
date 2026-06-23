@@ -2,7 +2,7 @@ import type { CopyFormat } from '@/shared/messages';
 
 const ROOT_ATTRIBUTE = 'data-element-picker-root';
 const OVERLAY_ATTRIBUTE = 'data-element-picker-overlay';
-const MENU_ATTRIBUTE = 'data-element-picker-menu';
+const PANEL_ATTRIBUTE = 'data-element-picker-panel';
 const TOAST_ATTRIBUTE = 'data-element-picker-toast';
 
 const FORMAT_LABELS: Record<CopyFormat, string> = {
@@ -13,16 +13,23 @@ const FORMAT_LABELS: Record<CopyFormat, string> = {
 
 type ToastKind = 'success' | 'error' | 'info';
 
-export type FormatMenuHandlers = {
-  onSelect: (format: CopyFormat) => void;
+export type SelectedMenuCallbacks = {
+  onSelectFormat: (format: CopyFormat) => void;
   onCancel: () => void;
 };
+
+export type PickerPanelPlacement = {
+  target: HTMLElement;
+  position?: { x: number; y: number };
+};
+
+export type PickerPanelRenderer = (panel: HTMLDivElement) => void;
 
 export class PickerUi {
   private readonly root: HTMLDivElement;
   private readonly shadowRoot: ShadowRoot;
   private overlay: HTMLDivElement | null = null;
-  private menu: HTMLDivElement | null = null;
+  private panel: HTMLDivElement | null = null;
   private toast: HTMLDivElement | null = null;
   private toastTimer: number | null = null;
 
@@ -66,45 +73,52 @@ export class PickerUi {
     this.overlay = null;
   }
 
-  showFormatMenu(
-    target: HTMLElement,
-    position: { x: number; y: number },
-    handlers: FormatMenuHandlers
-  ): void {
-    this.hideFormatMenu();
+  showSelectedMenu(placement: PickerPanelPlacement, callbacks: SelectedMenuCallbacks): void {
+    this.showPanel(placement, (panel) => {
+      for (const format of Object.keys(FORMAT_LABELS) as CopyFormat[]) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.textContent = FORMAT_LABELS[format];
+        button.addEventListener('click', () => callbacks.onSelectFormat(format));
+        panel.append(button);
+      }
 
-    const menu = document.createElement('div');
-    menu.setAttribute(MENU_ATTRIBUTE, '');
-    stopPageEventsInside(menu);
-
-    for (const format of Object.keys(FORMAT_LABELS) as CopyFormat[]) {
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.textContent = FORMAT_LABELS[format];
-      button.addEventListener('click', () => handlers.onSelect(format));
-      menu.append(button);
-    }
-
-    const cancelButton = document.createElement('button');
-    cancelButton.type = 'button';
-    cancelButton.textContent = 'Cancel';
-    cancelButton.dataset.variant = 'secondary';
-    cancelButton.addEventListener('click', handlers.onCancel);
-    menu.append(cancelButton);
-
-    this.shadowRoot.append(menu);
-    this.menu = menu;
-
-    const targetRect = target.getBoundingClientRect();
-    const desiredX = Number.isFinite(position.x) ? position.x : targetRect.left;
-    const desiredY = Number.isFinite(position.y) ? position.y : targetRect.bottom + 8;
-
-    placeWithinViewport(menu, desiredX, desiredY);
+      const cancelButton = document.createElement('button');
+      cancelButton.type = 'button';
+      cancelButton.textContent = 'Cancel';
+      cancelButton.dataset.variant = 'secondary';
+      cancelButton.addEventListener('click', callbacks.onCancel);
+      panel.append(cancelButton);
+    });
   }
 
-  hideFormatMenu(): void {
-    this.menu?.remove();
-    this.menu = null;
+  showPanel(placement: PickerPanelPlacement, render: PickerPanelRenderer): void {
+    this.hidePanel();
+
+    const panel = document.createElement('div');
+    panel.setAttribute(PANEL_ATTRIBUTE, '');
+    stopPageEventsInside(panel);
+    render(panel);
+
+    this.shadowRoot.append(panel);
+    this.panel = panel;
+
+    const targetRect = placement.target.getBoundingClientRect();
+    const desiredX =
+      placement.position && Number.isFinite(placement.position.x)
+        ? placement.position.x
+        : targetRect.left;
+    const desiredY =
+      placement.position && Number.isFinite(placement.position.y)
+        ? placement.position.y
+        : targetRect.bottom + 8;
+
+    placeWithinViewport(panel, desiredX, desiredY);
+  }
+
+  hidePanel(): void {
+    this.panel?.remove();
+    this.panel = null;
   }
 
   showToast(message: string, kind: ToastKind): void {
@@ -132,7 +146,7 @@ export class PickerUi {
 
   destroy(): void {
     this.hideToast();
-    this.hideFormatMenu();
+    this.hidePanel();
     this.hideOverlay();
     this.root.remove();
   }
@@ -179,7 +193,7 @@ const createStyleElement = (): HTMLStyleElement => {
       pointer-events: none;
     }
 
-    [${MENU_ATTRIBUTE}] {
+    [${PANEL_ATTRIBUTE}] {
       position: fixed;
       z-index: 2147483647;
       display: inline-flex;
@@ -194,7 +208,7 @@ const createStyleElement = (): HTMLStyleElement => {
         0 2px 8px rgba(15, 23, 42, 0.1);
     }
 
-    [${MENU_ATTRIBUTE}] button {
+    [${PANEL_ATTRIBUTE}] button {
       min-width: 44px;
       min-height: 30px;
       padding: 0 10px;
@@ -207,16 +221,16 @@ const createStyleElement = (): HTMLStyleElement => {
       cursor: pointer;
     }
 
-    [${MENU_ATTRIBUTE}] button:hover {
+    [${PANEL_ATTRIBUTE}] button:hover {
       background: #374151;
     }
 
-    [${MENU_ATTRIBUTE}] button[data-variant="secondary"] {
+    [${PANEL_ATTRIBUTE}] button[data-variant="secondary"] {
       background: #f3f4f6;
       color: #111827;
     }
 
-    [${MENU_ATTRIBUTE}] button[data-variant="secondary"]:hover {
+    [${PANEL_ATTRIBUTE}] button[data-variant="secondary"]:hover {
       background: #e5e7eb;
     }
 
