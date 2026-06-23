@@ -1,18 +1,12 @@
-import TurndownService from 'turndown';
+import { htmlToMarkdown } from './markdown';
 import type { CopyFormat } from '@/shared/messages';
-
-const turndownService = new TurndownService({
-  headingStyle: 'atx',
-  bulletListMarker: '-',
-  codeBlockStyle: 'fenced',
-});
 
 export const createCopyText = (element: HTMLElement, format: CopyFormat): string => {
   switch (format) {
     case 'html':
       return element.outerHTML.trim();
     case 'markdown':
-      return turndownService.turndown(element.outerHTML).trim();
+      return htmlToMarkdown(element.outerHTML);
     case 'text':
       return element.innerText.trim();
   }
