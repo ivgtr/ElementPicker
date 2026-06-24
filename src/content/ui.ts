@@ -171,6 +171,24 @@ export class PickerUi {
     popup.setAttribute(SETTINGS_POPUP_ATTRIBUTE, '');
     stopPageEventsInside(popup);
 
+    const header = document.createElement('div');
+    header.setAttribute('data-element-picker-settings-header', '');
+
+    const heading = document.createElement('div');
+    heading.textContent = 'Settings';
+    heading.setAttribute('data-element-picker-settings-heading', '');
+    header.append(heading);
+
+    const closeButton = document.createElement('button');
+    closeButton.type = 'button';
+    closeButton.textContent = 'Close';
+    closeButton.dataset.variant = 'secondary';
+    closeButton.dataset.size = 'compact';
+    closeButton.addEventListener('click', callbacks.onClose);
+    header.append(closeButton);
+
+    popup.append(header);
+
     popup.append(
       createSettingsRow(
         'Copy mode',
@@ -192,13 +210,6 @@ export class PickerUi {
         callbacks.onSelectDefaultFormat
       )
     );
-
-    const closeButton = document.createElement('button');
-    closeButton.type = 'button';
-    closeButton.textContent = 'Close';
-    closeButton.dataset.variant = 'secondary';
-    closeButton.addEventListener('click', callbacks.onClose);
-    popup.append(closeButton);
 
     this.shadowRoot.append(popup);
     this.settingsPopup = popup;
@@ -323,7 +334,10 @@ const createSettingsRow = <T extends string>(
   segmentedControl.setAttribute('data-element-picker-segmented-control', '');
   segmentedControl.setAttribute('role', 'radiogroup');
   segmentedControl.setAttribute('aria-label', ariaLabel);
-  segmentedControl.style.gridTemplateColumns = `repeat(${options.length}, minmax(0, 1fr))`;
+  segmentedControl.style.setProperty(
+    '--element-picker-option-min-width',
+    `${getOptionMinWidth(options.map(getLabel))}px`
+  );
 
   for (const option of options) {
     const button = document.createElement('button');
@@ -340,6 +354,11 @@ const createSettingsRow = <T extends string>(
 
   row.append(segmentedControl);
   return row;
+};
+
+const getOptionMinWidth = (labels: string[]): number => {
+  const longestLabelLength = Math.max(...labels.map((label) => label.length));
+  return Math.max(86, Math.min(116, longestLabelLength * 9 + 28));
 };
 
 const stopPageEventsInside = (element: HTMLElement): void => {
@@ -491,9 +510,9 @@ const createStyleElement = (): HTMLStyleElement => {
       z-index: 2147483647;
       display: grid;
       grid-template-columns: 1fr;
-      gap: 10px;
+      gap: 12px;
       box-sizing: border-box;
-      width: min(340px, calc(100vw - 24px));
+      width: min(320px, calc(100vw - 24px));
       padding: 12px;
       border: 1px solid rgba(15, 23, 42, 0.14);
       border-radius: 8px;
@@ -503,11 +522,25 @@ const createStyleElement = (): HTMLStyleElement => {
         0 2px 8px rgba(15, 23, 42, 0.1);
     }
 
+    [${SETTINGS_POPUP_ATTRIBUTE}] [data-element-picker-settings-header] {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    [${SETTINGS_POPUP_ATTRIBUTE}] [data-element-picker-settings-heading] {
+      color: #111827;
+      font: 700 13px/1.2 ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      letter-spacing: 0;
+      white-space: nowrap;
+    }
+
     [${SETTINGS_POPUP_ATTRIBUTE}] [data-element-picker-settings-row] {
       display: grid;
-      grid-template-columns: minmax(96px, max-content) 1fr;
-      align-items: center;
-      gap: 10px;
+      grid-template-columns: 1fr;
+      gap: 6px;
+      min-width: 0;
     }
 
     [${SETTINGS_POPUP_ATTRIBUTE}] [data-element-picker-settings-label] {
@@ -519,46 +552,51 @@ const createStyleElement = (): HTMLStyleElement => {
 
     [${SETTINGS_POPUP_ATTRIBUTE}] [data-element-picker-segmented-control] {
       display: grid;
-      overflow: hidden;
-      border: 1px solid #d1d5db;
-      border-radius: 8px;
-      background: #f9fafb;
+      grid-template-columns: repeat(auto-fit, minmax(var(--element-picker-option-min-width), 1fr));
+      gap: 6px;
+      min-width: 0;
     }
 
     [${SETTINGS_POPUP_ATTRIBUTE}] button {
       min-height: 30px;
-      padding: 0 9px;
-      border: 0;
-      background: transparent;
+      min-width: 0;
+      box-sizing: border-box;
+      padding: 0 10px;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      background: #ffffff;
       color: #111827;
       cursor: pointer;
       font: 600 12px/1 ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       letter-spacing: 0;
-    }
-
-    [${SETTINGS_POPUP_ATTRIBUTE}] [data-element-picker-segmented-control] button + button {
-      border-left: 1px solid #d1d5db;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
 
     [${SETTINGS_POPUP_ATTRIBUTE}] button:hover {
-      background: #eef2ff;
+      background: #f3f4f6;
     }
 
     [${SETTINGS_POPUP_ATTRIBUTE}] button[data-selected="true"] {
       background: #111827;
+      border-color: #111827;
       color: #ffffff;
     }
 
     [${SETTINGS_POPUP_ATTRIBUTE}] button[data-variant="secondary"] {
-      justify-self: end;
-      min-width: 64px;
-      border-radius: 6px;
       background: #f3f4f6;
       color: #111827;
     }
 
     [${SETTINGS_POPUP_ATTRIBUTE}] button[data-variant="secondary"]:hover {
       background: #e5e7eb;
+    }
+
+    [${SETTINGS_POPUP_ATTRIBUTE}] button[data-size="compact"] {
+      flex: 0 0 auto;
+      min-height: 28px;
+      padding: 0 9px;
     }
 
     [${SHORTCUT_HINT_ATTRIBUTE}] {
@@ -592,10 +630,6 @@ const createStyleElement = (): HTMLStyleElement => {
       [${SETTINGS_POPUP_ATTRIBUTE}] {
         top: 52px;
         bottom: auto;
-      }
-
-      [${SETTINGS_POPUP_ATTRIBUTE}] [data-element-picker-settings-row] {
-        grid-template-columns: 1fr;
       }
 
       [${SHORTCUT_HINT_ATTRIBUTE}] {
