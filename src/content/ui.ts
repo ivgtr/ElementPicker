@@ -4,6 +4,7 @@ const ROOT_ATTRIBUTE = 'data-element-picker-root';
 const OVERLAY_ATTRIBUTE = 'data-element-picker-overlay';
 const PANEL_ATTRIBUTE = 'data-element-picker-panel';
 const TOAST_ATTRIBUTE = 'data-element-picker-toast';
+const SHORTCUT_HINT_ATTRIBUTE = 'data-element-picker-shortcut-hint';
 
 const FORMAT_LABELS: Record<CopyFormat, string> = {
   html: 'HTML',
@@ -15,16 +16,12 @@ type ToastKind = 'success' | 'error' | 'info';
 
 export type SelectedMenuCallbacks = {
   onSelectFormat: (format: CopyFormat) => void;
-  onSelectParent: () => void;
-  onSelectChild: () => void;
   onOpenSettings: () => void;
   onCancel: () => void;
 };
 
 export type SelectedMenuState = {
   targetLabel: string;
-  canSelectParent: boolean;
-  canSelectChild: boolean;
   defaultFormat: CopyFormat;
 };
 
@@ -49,6 +46,7 @@ export class PickerUi {
   private readonly shadowRoot: ShadowRoot;
   private overlay: HTMLDivElement | null = null;
   private panel: HTMLDivElement | null = null;
+  private shortcutHint: HTMLDivElement | null = null;
   private toast: HTMLDivElement | null = null;
   private toastTimer: number | null = null;
 
@@ -115,26 +113,6 @@ export class PickerUi {
         button.addEventListener('click', () => callbacks.onSelectFormat(format));
         panel.append(button);
       }
-
-      const parentButton = document.createElement('button');
-      parentButton.type = 'button';
-      parentButton.textContent = 'Parent';
-      parentButton.disabled = !menuState.canSelectParent;
-      parentButton.title = menuState.canSelectParent
-        ? 'Select parent element'
-        : 'No selectable parent';
-      parentButton.dataset.variant = 'secondary';
-      parentButton.addEventListener('click', callbacks.onSelectParent);
-      panel.append(parentButton);
-
-      const childButton = document.createElement('button');
-      childButton.type = 'button';
-      childButton.textContent = 'Child';
-      childButton.disabled = !menuState.canSelectChild;
-      childButton.title = menuState.canSelectChild ? 'Select child element' : 'No selectable child';
-      childButton.dataset.variant = 'secondary';
-      childButton.addEventListener('click', callbacks.onSelectChild);
-      panel.append(childButton);
 
       const settingsButton = document.createElement('button');
       settingsButton.type = 'button';
@@ -217,6 +195,24 @@ export class PickerUi {
     this.panel = null;
   }
 
+  showShortcutHint(): void {
+    if (this.shortcutHint) {
+      return;
+    }
+
+    const shortcutHint = document.createElement('div');
+    shortcutHint.setAttribute(SHORTCUT_HINT_ATTRIBUTE, '');
+    shortcutHint.textContent = 'W/S 親子移動   A/D 兄弟移動   Click 選択   Esc キャンセル';
+
+    this.shadowRoot.append(shortcutHint);
+    this.shortcutHint = shortcutHint;
+  }
+
+  hideShortcutHint(): void {
+    this.shortcutHint?.remove();
+    this.shortcutHint = null;
+  }
+
   showToast(message: string, kind: ToastKind): void {
     this.hideToast();
 
@@ -242,6 +238,7 @@ export class PickerUi {
 
   destroy(): void {
     this.hideToast();
+    this.hideShortcutHint();
     this.hidePanel();
     this.hideOverlay();
     this.root.remove();
@@ -367,6 +364,27 @@ const createStyleElement = (): HTMLStyleElement => {
 
     [${PANEL_ATTRIBUTE}] button[data-variant="secondary"]:hover {
       background: #e5e7eb;
+    }
+
+    [${SHORTCUT_HINT_ATTRIBUTE}] {
+      position: fixed;
+      left: 50%;
+      bottom: 16px;
+      z-index: 2147483646;
+      box-sizing: border-box;
+      max-width: min(520px, calc(100vw - 24px));
+      padding: 7px 10px;
+      border: 1px solid rgba(255, 255, 255, 0.24);
+      border-radius: 8px;
+      background: rgba(17, 24, 39, 0.82);
+      color: #ffffff;
+      box-shadow: 0 8px 24px rgba(15, 23, 42, 0.18);
+      font: 600 12px/1.35 ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      letter-spacing: 0;
+      pointer-events: none;
+      text-align: center;
+      transform: translateX(-50%);
+      white-space: normal;
     }
 
     [${TOAST_ATTRIBUTE}] {

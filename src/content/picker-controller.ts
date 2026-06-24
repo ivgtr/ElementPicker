@@ -1,5 +1,5 @@
 import { copyTextToClipboard, createCopyText } from './copy';
-import { getSelectableChild, getSelectableParent, isSelectableElement } from './selection';
+import { isSelectableElement, moveSelection, type SelectionDirection } from './selection';
 import {
   DEFAULT_PICKER_SETTINGS,
   loadPickerSettings,
@@ -40,6 +40,7 @@ export class PickerController {
 
     this.state = 'selecting';
     this.ui = new PickerUi();
+    this.ui.showShortcutHint();
     this.addEventListeners();
     this.ui.showToast('Select an element to copy.', 'info');
   }
@@ -91,9 +92,9 @@ export class PickerController {
     event.stopPropagation();
     event.stopImmediatePropagation();
 
-    const target = this.findSelectableElement(
-      document.elementFromPoint(event.clientX, event.clientY)
-    );
+    const target =
+      this.hoveredElement ??
+      this.findSelectableElement(document.elementFromPoint(event.clientX, event.clientY));
 
     if (!target) {
       return;
@@ -113,7 +114,29 @@ export class PickerController {
   };
 
   private readonly handleKeyDown = (event: KeyboardEvent): void => {
-    if (event.key !== 'Escape' || this.state === 'idle') {
+    if (this.state === 'idle') {
+      return;
+    }
+
+    const selectionDirection = getSelectionDirection(event);
+
+    if (selectionDirection) {
+      if (this.ui?.isPickerEvent(event) || isEditableEventTarget(event.target)) {
+        return;
+      }
+
+      if (!this.canMoveSelectionWithShortcut()) {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      this.moveSelectionWithShortcut(selectionDirection);
+      return;
+    }
+
+    if (event.key !== 'Escape') {
       return;
     }
 
@@ -156,18 +179,12 @@ export class PickerController {
       { target: this.selectedElement, position },
       {
         targetLabel: createElementLabel(this.selectedElement),
-        canSelectParent:
-          getSelectableParent(this.selectedElement, this.getSelectionOptions()) !== null,
-        canSelectChild:
-          getSelectableChild(this.selectedElement, this.getSelectionOptions()) !== null,
         defaultFormat: this.settings.defaultFormat,
       },
       {
         onSelectFormat: (format) => {
           void this.copySelection(format);
         },
-        onSelectParent: () => this.moveSelection('parent'),
-        onSelectChild: () => this.moveSelection('child'),
         onOpenSettings: () => this.openSettingsMenu(),
         onCancel: () => this.cancel(),
       }
@@ -236,24 +253,31 @@ export class PickerController {
     this.ui?.hidePanel();
   }
 
-  private moveSelection(direction: 'parent' | 'child'): void {
-    if (!this.selectedElement || this.state !== 'selected') {
+  private moveSelectionWithShortcut(direction: SelectionDirection): void {
+    const currentElement =
+      this.state === 'selecting' ? this.hoveredElement : this.selectedElement;
+
+    if (!currentElement) {
       return;
     }
 
-    const nextElement =
-      direction === 'parent'
-        ? getSelectableParent(this.selectedElement, this.getSelectionOptions())
-        : getSelectableChild(this.selectedElement, this.getSelectionOptions());
+    const nextElement = moveSelection(currentElement, direction, this.getSelectionOptions());
 
     if (!nextElement) {
-      this.showSelectedMenu();
       return;
     }
 
-    this.selectedElement = nextElement;
+    if (this.state === 'selecting') {
+      this.hoveredElement = nextElement;
+    } else {
+      this.selectedElement = nextElement;
+    }
+
     this.ui?.showOverlay(nextElement);
-    this.showSelectedMenu();
+
+    if (this.state === 'selected') {
+      this.showSelectedMenu();
+    }
   }
 
   private async copySelection(format: CopyFormat): Promise<void> {
@@ -286,6 +310,7 @@ export class PickerController {
 
     this.removeEventListeners();
     ui?.hidePanel();
+    ui?.hideShortcutHint();
     ui?.hideOverlay();
     this.hoveredElement = null;
     this.selectedElement = null;
@@ -314,6 +339,10 @@ export class PickerController {
 
   private shouldBlockPageEvents(): boolean {
     return this.state !== 'idle' && this.state !== 'copying';
+  }
+
+  private canMoveSelectionWithShortcut(): boolean {
+    return this.state === 'selecting' || this.state === 'selected';
   }
 
   private hasConfirmedSelection(): boolean {
@@ -366,4 +395,42 @@ const createElementLabel = (element: HTMLElement): string => {
   }
 
   return parts.join('');
+};
+
+const getSelectionDirection = (event: KeyboardEvent): SelectionDirection | null => {
+  if (event.altKey || event.ctrlKey || event.metaKey) {
+    return null;
+  }
+
+  switch (event.key.toLowerCase()) {
+    case 'w':
+      return 'parent';
+    case 's':
+      return 'child';
+    case 'a':
+      return 'previous-sibling';
+    case 'd':
+      return 'next-sibling';
+    default:
+      return null;
+  }
+};
+
+const isEditableEventTarget = (target: EventTarget | null): boolean => {
+  if (!(target instanceof HTMLElement)) {
+    return false;
+  }
+
+  if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) {
+    return true;
+  }
+
+  if (target instanceof HTMLSelectElement) {
+    return true;
+  }
+
+  return (
+    target.isContentEditable ||
+    target.closest('[contenteditable="true"], [contenteditable=""]') !== null
+  );
 };
