@@ -1,3 +1,4 @@
+import { formatHtmlForPlainText } from './html-format';
 import { htmlToMarkdown } from './markdown';
 import type { CopyFormat } from '@/shared/messages';
 
@@ -6,10 +7,24 @@ export const createCopyText = (element: HTMLElement, format: CopyFormat): string
     case 'html':
       return element.outerHTML.trim();
     case 'markdown':
-      return htmlToMarkdown(element.outerHTML);
+      return htmlToMarkdown(element);
     case 'text':
       return element.innerText.trim();
   }
+};
+
+export const copySelectionToClipboard = async (
+  element: HTMLElement,
+  format: CopyFormat
+): Promise<void> => {
+  const text = createCopyText(element, format);
+
+  if (format === 'html') {
+    await copyHtmlToClipboard(text);
+    return;
+  }
+
+  await copyTextToClipboard(text);
 };
 
 export const copyTextToClipboard = async (text: string): Promise<void> => {
@@ -45,4 +60,28 @@ export const copyTextToClipboard = async (text: string): Promise<void> => {
   } finally {
     textarea.remove();
   }
+};
+
+const copyHtmlToClipboard = async (html: string): Promise<void> => {
+  if (!html) {
+    throw new Error('Copy result is empty.');
+  }
+
+  const plainHtml = formatHtmlForPlainText(html);
+
+  if (navigator.clipboard?.write && typeof ClipboardItem !== 'undefined') {
+    try {
+      await navigator.clipboard.write([
+        new ClipboardItem({
+          'text/html': new Blob([html], { type: 'text/html' }),
+          'text/plain': new Blob([plainHtml], { type: 'text/plain' }),
+        }),
+      ]);
+      return;
+    } catch {
+      // Fall through to plain-text HTML for pages where rich clipboard writes are blocked.
+    }
+  }
+
+  await copyTextToClipboard(plainHtml);
 };

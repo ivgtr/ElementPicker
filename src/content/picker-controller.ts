@@ -1,4 +1,4 @@
-import { copyTextToClipboard, createCopyText } from './copy';
+import { copySelectionToClipboard } from './copy';
 import { isSelectableElement, moveSelection, type SelectionDirection } from './selection';
 import {
   DEFAULT_PICKER_SETTINGS,
@@ -340,8 +340,7 @@ export class PickerController {
     this.settingsOpen = false;
 
     try {
-      const text = createCopyText(this.selectedElement, format);
-      await copyTextToClipboard(text);
+      await copySelectionToClipboard(this.selectedElement, format);
       this.ui?.showToast(`${getCopyFormatLabel(format)} copied`, 'success');
       this.finishAfterToast();
     } catch (error) {

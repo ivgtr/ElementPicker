@@ -9,10 +9,34 @@ const createMarkdownService = (): TurndownService => {
   });
 
   service.use(gfm);
+  service.addRule('elementPickerParagraphBreak', {
+    filter: (node) => node.nodeName === 'BR' && isInConsecutiveBreakRun(node),
+    replacement: (_content, node) => {
+      return isFirstBreakInRun(node) ? '\n\n' : '';
+    },
+  });
+  service.addRule('elementPickerInlineLink', {
+    filter: 'a',
+    replacement: (content, node) => {
+      return linkToMarkdown(node as HTMLAnchorElement, content);
+    },
+  });
   service.addRule('elementPickerTable', {
     filter: 'table',
     replacement: (_content, node) => {
       return tableToMarkdown(node as HTMLTableElement, service);
+    },
+  });
+  service.addRule('elementPickerTableSection', {
+    filter: ['thead', 'tbody', 'tfoot'],
+    replacement: (_content, node) => {
+      return tableRowsToMarkdown(Array.from((node as HTMLTableSectionElement).rows), service);
+    },
+  });
+  service.addRule('elementPickerTableRow', {
+    filter: 'tr',
+    replacement: (_content, node) => {
+      return tableRowsToMarkdown([node as HTMLTableRowElement], service);
     },
   });
 
@@ -21,14 +45,20 @@ const createMarkdownService = (): TurndownService => {
 
 const markdownService = createMarkdownService();
 
-export const htmlToMarkdown = (html: string): string => {
-  return markdownService.turndown(html).trim();
+export const htmlToMarkdown = (input: string | HTMLElement): string => {
+  return markdownService.turndown(input).trim();
 };
 
 const tableToMarkdown = (table: HTMLTableElement, service: TurndownService): string => {
-  const rows = Array.from(table.rows)
-    .map((row) => Array.from(row.cells))
-    .filter((cells) => cells.length > 0);
+  return tableRowsToMarkdown(Array.from(table.rows), service, table);
+};
+
+const tableRowsToMarkdown = (
+  tableRows: HTMLTableRowElement[],
+  service: TurndownService,
+  table?: HTMLTableElement
+): string => {
+  const rows = tableRows.map((row) => Array.from(row.cells)).filter((cells) => cells.length > 0);
 
   if (rows.length === 0) {
     return '';
@@ -50,7 +80,7 @@ const tableToMarkdown = (table: HTMLTableElement, service: TurndownService): str
   const bodyRows = hasExplicitHeader ? markdownRows.slice(1) : markdownRows;
   const separator = createSeparatorRow(hasExplicitHeader ? rows[0] : [], columnCount);
 
-  const caption = table.caption ? service.turndown(table.caption.innerHTML).trim() : '';
+  const caption = table?.caption ? service.turndown(table.caption.innerHTML).trim() : '';
   const markdownTable = [header, separator, ...bodyRows.map((row) => padRow(row, columnCount))]
     .map(formatTableRow)
     .join('\n');
@@ -58,13 +88,16 @@ const tableToMarkdown = (table: HTMLTableElement, service: TurndownService): str
   return `\n\n${[caption, markdownTable].filter(Boolean).join('\n\n')}\n\n`;
 };
 
-const isExplicitHeaderRow = (cells: HTMLTableCellElement[], table: HTMLTableElement): boolean => {
+const isExplicitHeaderRow = (
+  cells: HTMLTableCellElement[],
+  table?: HTMLTableElement
+): boolean => {
   if (cells.length === 0) {
     return false;
   }
 
   const firstTableRow = cells[0].parentElement;
-  return table.tHead?.rows[0] === firstTableRow || cells.some((cell) => cell.tagName === 'TH');
+  return table?.tHead?.rows[0] === firstTableRow || cells.some((cell) => cell.tagName === 'TH');
 };
 
 const cellToMarkdown = (cell: HTMLTableCellElement, service: TurndownService): string => {
@@ -108,4 +141,75 @@ const padRow = (row: string[], columnCount: number, fill = ''): string[] => {
 
 const formatTableRow = (row: string[]): string => {
   return `| ${row.join(' | ')} |`;
+};
+
+const linkToMarkdown = (anchor: HTMLAnchorElement, content: string): string => {
+  const href = anchor.getAttribute('href')?.trim() ?? '';
+  const label = normalizeInlineMarkdown(content);
+
+  if (!href) {
+    return label;
+  }
+
+  if (!label) {
+    return href;
+  }
+
+  const title = anchor.getAttribute('title')?.trim();
+  const titlePart = title ? ` "${title.replace(/"/g, '\\"')}"` : '';
+
+  return `[${label}](${escapeLinkDestination(href)}${titlePart})`;
+};
+
+const normalizeInlineMarkdown = (content: string): string => {
+  return content
+    .trim()
+    .replace(/[ \t]*\n+[ \t]*/g, ' ')
+    .replace(/[ \t]{2,}/g, ' ');
+};
+
+const escapeLinkDestination = (href: string): string => {
+  if (/\s/.test(href)) {
+    return `<${href.replace(/\\/g, '\\\\').replace(/>/g, '\\>')}>`;
+  }
+
+  return href.replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)');
+};
+
+const isInConsecutiveBreakRun = (node: Node): boolean => {
+  return (
+    previousMeaningfulSibling(node)?.nodeName === 'BR' ||
+    nextMeaningfulSibling(node)?.nodeName === 'BR'
+  );
+};
+
+const isFirstBreakInRun = (node: Node): boolean => {
+  return (
+    previousMeaningfulSibling(node)?.nodeName !== 'BR' &&
+    nextMeaningfulSibling(node)?.nodeName === 'BR'
+  );
+};
+
+const previousMeaningfulSibling = (node: Node): Node | null => {
+  let sibling = node.previousSibling;
+
+  while (sibling && isWhitespaceText(sibling)) {
+    sibling = sibling.previousSibling;
+  }
+
+  return sibling;
+};
+
+const nextMeaningfulSibling = (node: Node): Node | null => {
+  let sibling = node.nextSibling;
+
+  while (sibling && isWhitespaceText(sibling)) {
+    sibling = sibling.nextSibling;
+  }
+
+  return sibling;
+};
+
+const isWhitespaceText = (node: Node): boolean => {
+  return node.nodeType === 3 && node.textContent?.trim() === '';
 };
