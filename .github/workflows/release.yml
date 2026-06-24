@@ -1,0 +1,144 @@
+name: Release
+
+on:
+  pull_request:
+    types: [closed]
+    branches:
+      - main
+
+jobs:
+  release:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+      pull-requests: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Check for release label
+        id: check-label
+        run: |
+          labels='${{ toJson(github.event.pull_request.labels.*.name) }}'
+          echo "Labels: $labels"
+
+          if echo "$labels" | grep -q "release:major"; then
+            echo "release-type=major" >> "$GITHUB_OUTPUT"
+          elif echo "$labels" | grep -q "release:minor"; then
+            echo "release-type=minor" >> "$GITHUB_OUTPUT"
+          elif echo "$labels" | grep -q "release:patch"; then
+            echo "release-type=patch" >> "$GITHUB_OUTPUT"
+          else
+            echo "release-type=none" >> "$GITHUB_OUTPUT"
+            echo "No release label found. Skipping release."
+          fi
+
+      - name: Setup Node.js
+        if: steps.check-label.outputs.release-type != 'none'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Get latest version from tags
+        if: steps.check-label.outputs.release-type != 'none'
+        id: get-version
+        run: |
+          latest_tag=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+          current_version=${latest_tag#v}
+          echo "current-version=$current_version" >> "$GITHUB_OUTPUT"
+          echo "Current version: $current_version"
+
+      - name: Calculate new version
+        if: steps.check-label.outputs.release-type != 'none'
+        id: bump
+        run: |
+          current_version="${{ steps.get-version.outputs.current-version }}"
+          release_type="${{ steps.check-label.outputs.release-type }}"
+
+          IFS='.' read -r major minor patch <<< "$current_version"
+
+          case "$release_type" in
+            major)
+              new_version="$((major + 1)).0.0"
+              ;;
+            minor)
+              new_version="$major.$((minor + 1)).0"
+              ;;
+            patch)
+              new_version="$major.$minor.$((patch + 1))"
+              ;;
+          esac
+
+          echo "version=$new_version" >> "$GITHUB_OUTPUT"
+          echo "New version: $current_version -> $new_version"
+
+      - name: Install dependencies
+        if: steps.check-label.outputs.release-type != 'none'
+        run: npm ci
+
+      - name: Update package version
+        if: steps.check-label.outputs.release-type != 'none'
+        run: npm version ${{ steps.bump.outputs.version }} --no-git-tag-version
+
+      - name: Type check
+        if: steps.check-label.outputs.release-type != 'none'
+        run: npm run type-check
+
+      - name: Lint
+        if: steps.check-label.outputs.release-type != 'none'
+        run: npm run lint
+
+      - name: Build extension
+        if: steps.check-label.outputs.release-type != 'none'
+        run: npm run build
+
+      - name: Create distribution zip
+        if: steps.check-label.outputs.release-type != 'none'
+        run: |
+          cd dist
+          zip -r ../element-picker-v${{ steps.bump.outputs.version }}.zip .
+          cd ..
+          echo "Created: element-picker-v${{ steps.bump.outputs.version }}.zip"
+
+      - name: Commit version bump
+        if: steps.check-label.outputs.release-type != 'none'
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add package.json package-lock.json
+          git commit -m "chore: bump version to ${{ steps.bump.outputs.version }}"
+          git push
+
+      - name: Create GitHub Release
+        if: steps.check-label.outputs.release-type != 'none'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.bump.outputs.version }}
+          name: Element Picker v${{ steps.bump.outputs.version }}
+          body: |
+            ## Install
+
+            1. Download `element-picker-v${{ steps.bump.outputs.version }}.zip` from Assets.
+            2. Extract the zip file.
+            3. Open `chrome://extensions/` in Chrome.
+            4. Enable Developer mode.
+            5. Click "Load unpacked".
+            6. Select the extracted folder.
+
+            Chrome may show a developer mode warning because this extension is distributed through GitHub Releases.
+
+            ## Changes
+
+            ${{ github.event.pull_request.title }}
+
+            ${{ github.event.pull_request.body }}
+          files: element-picker-v${{ steps.bump.outputs.version }}.zip
+          draft: false
+          prerelease: false
