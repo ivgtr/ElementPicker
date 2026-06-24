@@ -116,7 +116,14 @@ export class PickerController {
     const selectionDirection = getSelectionDirection(event);
 
     if (selectionDirection) {
-      if (this.ui?.isPickerEvent(event) || isEditableEventTarget(event.target)) {
+      if (this.ui?.isPickerEvent(event)) {
+        event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation();
+        return;
+      }
+
+      if (isEditableEventTarget(event.target)) {
         return;
       }
 
@@ -135,15 +142,17 @@ export class PickerController {
       return;
     }
 
-    event.preventDefault();
-    event.stopPropagation();
-    event.stopImmediatePropagation();
-
     if (this.settingsOpen) {
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
       this.closeSettingsPopup();
       return;
     }
 
+    event.preventDefault();
+    event.stopPropagation();
+    event.stopImmediatePropagation();
     this.cancel();
   };
 
@@ -227,7 +236,6 @@ export class PickerController {
 
     try {
       await savePickerSettings(this.settings);
-      this.ui?.showToast('Settings saved.', 'success');
     } catch (error) {
       console.warn('[Element Picker] Failed to save settings.', error);
       this.settings = previousSettings;

@@ -527,7 +527,7 @@ const createStyleElement = (): HTMLStyleElement => {
       bottom: 16px;
       z-index: 2147483646;
       box-sizing: border-box;
-      max-width: min(520px, calc(100vw - 24px));
+      max-width: min(520px, calc(100vw - 96px));
       padding: 7px 10px;
       border: 1px solid rgba(255, 255, 255, 0.24);
       border-radius: 8px;
@@ -556,12 +556,16 @@ const createStyleElement = (): HTMLStyleElement => {
       [${SETTINGS_POPUP_ATTRIBUTE}] [data-element-picker-settings-row] {
         grid-template-columns: 1fr;
       }
+
+      [${SHORTCUT_HINT_ATTRIBUTE}] {
+        max-width: min(520px, calc(100vw - 24px));
+      }
     }
 
     [${TOAST_ATTRIBUTE}] {
       position: fixed;
       right: 16px;
-      bottom: 56px;
+      bottom: 104px;
       z-index: 2147483647;
       max-width: min(360px, calc(100vw - 32px));
       box-sizing: border-box;
