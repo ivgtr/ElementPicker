@@ -9,7 +9,7 @@ import {
 import { PickerUi } from './ui';
 import type { CopyFormat } from '@/shared/messages';
 
-type PickerState = 'idle' | 'selecting' | 'selected' | 'settings' | 'copying';
+type PickerState = 'idle' | 'selecting' | 'selected' | 'copying';
 
 export class PickerController {
   private state: PickerState = 'idle';
@@ -17,7 +17,7 @@ export class PickerController {
   private hoveredElement: HTMLElement | null = null;
   private selectedElement: HTMLElement | null = null;
   private settings: PickerSettings = DEFAULT_PICKER_SETTINGS;
-  private stateBeforeSettings: Extract<PickerState, 'selecting' | 'selected'> = 'selecting';
+  private settingsOpen = false;
   private startRequestId = 0;
 
   async start(): Promise<void> {
@@ -41,6 +41,9 @@ export class PickerController {
     this.state = 'selecting';
     this.ui = new PickerUi();
     this.ui.showShortcutHint();
+    this.ui.showSettingsButton({
+      onToggle: () => this.toggleSettingsPopup(),
+    });
     this.addEventListeners();
     this.ui.showToast('Select an element to copy.', 'info');
   }
@@ -65,14 +68,6 @@ export class PickerController {
 
   private readonly handleClick = (event: MouseEvent): void => {
     if (this.ui?.isPickerEvent(event)) {
-      return;
-    }
-
-    if (this.state === 'settings') {
-      event.preventDefault();
-      event.stopPropagation();
-      event.stopImmediatePropagation();
-      this.closeSettingsMenu();
       return;
     }
 
@@ -144,8 +139,8 @@ export class PickerController {
     event.stopPropagation();
     event.stopImmediatePropagation();
 
-    if (this.state === 'settings') {
-      this.closeSettingsMenu();
+    if (this.settingsOpen) {
+      this.closeSettingsPopup();
       return;
     }
 
@@ -185,47 +180,50 @@ export class PickerController {
         onSelectFormat: (format) => {
           void this.copySelection(format);
         },
-        onOpenSettings: () => this.openSettingsMenu(),
         onCancel: () => this.cancel(),
       }
     );
   }
 
-  private openSettingsMenu(): void {
-    if (!this.selectedElement || this.state !== 'selected') {
+  private toggleSettingsPopup(): void {
+    if (this.settingsOpen) {
+      this.closeSettingsPopup();
       return;
     }
 
-    this.stateBeforeSettings = this.state;
-    this.state = 'settings';
-    this.showSettingsMenu();
+    this.openSettingsPopup();
   }
 
-  private showSettingsMenu(): void {
-    if (!this.selectedElement) {
+  private openSettingsPopup(): void {
+    if (this.state === 'idle' || this.state === 'copying') {
       return;
     }
 
-    this.ui?.showSettingsMenu(
-      { target: this.selectedElement },
+    this.settingsOpen = true;
+    this.showSettingsPopup();
+  }
+
+  private showSettingsPopup(): void {
+    this.ui?.showSettingsPopup(
       { defaultFormat: this.settings.defaultFormat },
       {
         onSelectDefaultFormat: (format) => {
           void this.updateDefaultFormat(format);
         },
-        onClose: () => this.closeSettingsMenu(),
+        onClose: () => this.closeSettingsPopup(),
       }
     );
   }
 
   private async updateDefaultFormat(defaultFormat: CopyFormat): Promise<void> {
-    if (this.state !== 'settings') {
+    if (!this.settingsOpen) {
       return;
     }
 
     const previousSettings = this.settings;
     this.settings = { ...this.settings, defaultFormat };
-    this.showSettingsMenu();
+    this.showSettingsPopup();
+    this.refreshSelectedMenu();
 
     try {
       await savePickerSettings(this.settings);
@@ -233,24 +231,25 @@ export class PickerController {
     } catch (error) {
       console.warn('[Element Picker] Failed to save settings.', error);
       this.settings = previousSettings;
-      this.showSettingsMenu();
+      this.showSettingsPopup();
+      this.refreshSelectedMenu();
       this.ui?.showToast('Failed to save settings.', 'error');
     }
   }
 
-  private closeSettingsMenu(): void {
-    if (this.state !== 'settings') {
+  private closeSettingsPopup(): void {
+    if (!this.settingsOpen) {
       return;
     }
 
-    this.state = this.stateBeforeSettings;
+    this.settingsOpen = false;
+    this.ui?.hideSettingsPopup();
+  }
 
+  private refreshSelectedMenu(): void {
     if (this.state === 'selected') {
       this.showSelectedMenu();
-      return;
     }
-
-    this.ui?.hidePanel();
   }
 
   private moveSelectionWithShortcut(direction: SelectionDirection): void {
@@ -287,6 +286,9 @@ export class PickerController {
 
     this.state = 'copying';
     this.ui?.hidePanel();
+    this.ui?.hideSettingsPopup();
+    this.ui?.hideSettingsButton();
+    this.settingsOpen = false;
 
     try {
       const text = createCopyText(this.selectedElement, format);
@@ -310,10 +312,13 @@ export class PickerController {
 
     this.removeEventListeners();
     ui?.hidePanel();
+    ui?.hideSettingsPopup();
+    ui?.hideSettingsButton();
     ui?.hideShortcutHint();
     ui?.hideOverlay();
     this.hoveredElement = null;
     this.selectedElement = null;
+    this.settingsOpen = false;
     this.state = 'idle';
 
     window.setTimeout(() => {
@@ -346,11 +351,7 @@ export class PickerController {
   }
 
   private hasConfirmedSelection(): boolean {
-    return (
-      this.state === 'selected' ||
-      this.state === 'settings' ||
-      this.state === 'copying'
-    );
+    return this.state === 'selected' || this.state === 'copying';
   }
 
   private addEventListeners(): void {
@@ -379,6 +380,7 @@ export class PickerController {
     this.ui = null;
     this.hoveredElement = null;
     this.selectedElement = null;
+    this.settingsOpen = false;
     this.state = 'idle';
   }
 }

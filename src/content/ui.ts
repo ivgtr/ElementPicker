@@ -5,6 +5,8 @@ const OVERLAY_ATTRIBUTE = 'data-element-picker-overlay';
 const PANEL_ATTRIBUTE = 'data-element-picker-panel';
 const TOAST_ATTRIBUTE = 'data-element-picker-toast';
 const SHORTCUT_HINT_ATTRIBUTE = 'data-element-picker-shortcut-hint';
+const SETTINGS_BUTTON_ATTRIBUTE = 'data-element-picker-settings-button';
+const SETTINGS_POPUP_ATTRIBUTE = 'data-element-picker-settings-popup';
 
 const FORMAT_LABELS: Record<CopyFormat, string> = {
   html: 'HTML',
@@ -16,7 +18,6 @@ type ToastKind = 'success' | 'error' | 'info';
 
 export type SelectedMenuCallbacks = {
   onSelectFormat: (format: CopyFormat) => void;
-  onOpenSettings: () => void;
   onCancel: () => void;
 };
 
@@ -34,6 +35,10 @@ export type SettingsMenuState = {
   defaultFormat: CopyFormat;
 };
 
+export type SettingsButtonCallbacks = {
+  onToggle: () => void;
+};
+
 export type PickerPanelPlacement = {
   target: HTMLElement;
   position?: { x: number; y: number };
@@ -46,6 +51,8 @@ export class PickerUi {
   private readonly shadowRoot: ShadowRoot;
   private overlay: HTMLDivElement | null = null;
   private panel: HTMLDivElement | null = null;
+  private settingsButton: HTMLButtonElement | null = null;
+  private settingsPopup: HTMLDivElement | null = null;
   private shortcutHint: HTMLDivElement | null = null;
   private toast: HTMLDivElement | null = null;
   private toastTimer: number | null = null;
@@ -114,15 +121,6 @@ export class PickerUi {
         panel.append(button);
       }
 
-      const settingsButton = document.createElement('button');
-      settingsButton.type = 'button';
-      settingsButton.textContent = '⚙';
-      settingsButton.setAttribute('aria-label', 'Settings');
-      settingsButton.dataset.variant = 'secondary';
-      settingsButton.dataset.iconButton = 'true';
-      settingsButton.addEventListener('click', callbacks.onOpenSettings);
-      panel.append(settingsButton);
-
       const cancelButton = document.createElement('button');
       cancelButton.type = 'button';
       cancelButton.textContent = 'Cancel';
@@ -132,38 +130,82 @@ export class PickerUi {
     });
   }
 
-  showSettingsMenu(
-    placement: PickerPanelPlacement,
+  showSettingsButton(callbacks: SettingsButtonCallbacks): void {
+    if (this.settingsButton) {
+      return;
+    }
+
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = '⚙';
+    button.setAttribute(SETTINGS_BUTTON_ATTRIBUTE, '');
+    button.setAttribute('aria-label', 'Settings');
+    button.title = 'Settings';
+    stopPageEventsInside(button);
+    button.addEventListener('click', callbacks.onToggle);
+
+    this.shadowRoot.append(button);
+    this.settingsButton = button;
+  }
+
+  hideSettingsButton(): void {
+    this.settingsButton?.remove();
+    this.settingsButton = null;
+  }
+
+  showSettingsPopup(
     menuState: SettingsMenuState,
     callbacks: SettingsMenuCallbacks
   ): void {
-    this.showPanel(placement, (panel) => {
-      panel.dataset.layout = 'settings';
+    this.hideSettingsPopup();
 
-      const heading = document.createElement('div');
-      heading.textContent = 'Default format';
-      heading.setAttribute('data-element-picker-settings-heading', '');
-      panel.append(heading);
+    const popup = document.createElement('div');
+    popup.setAttribute(SETTINGS_POPUP_ATTRIBUTE, '');
+    stopPageEventsInside(popup);
 
-      for (const format of Object.keys(FORMAT_LABELS) as CopyFormat[]) {
-        const button = document.createElement('button');
-        button.type = 'button';
-        button.textContent = FORMAT_LABELS[format];
-        if (format === menuState.defaultFormat) {
-          button.setAttribute('aria-pressed', 'true');
-          button.dataset.defaultFormat = 'true';
-        }
-        button.addEventListener('click', () => callbacks.onSelectDefaultFormat(format));
-        panel.append(button);
+    const row = document.createElement('div');
+    row.setAttribute('data-element-picker-settings-row', '');
+
+    const label = document.createElement('div');
+    label.textContent = 'Default format';
+    label.setAttribute('data-element-picker-settings-label', '');
+    row.append(label);
+
+    const segmentedControl = document.createElement('div');
+    segmentedControl.setAttribute('data-element-picker-segmented-control', '');
+    segmentedControl.setAttribute('role', 'radiogroup');
+    segmentedControl.setAttribute('aria-label', 'Default format');
+
+    for (const format of Object.keys(FORMAT_LABELS) as CopyFormat[]) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.textContent = FORMAT_LABELS[format];
+      button.setAttribute('role', 'radio');
+      button.setAttribute('aria-checked', String(format === menuState.defaultFormat));
+      if (format === menuState.defaultFormat) {
+        button.dataset.defaultFormat = 'true';
       }
+      button.addEventListener('click', () => callbacks.onSelectDefaultFormat(format));
+      segmentedControl.append(button);
+    }
 
-      const closeButton = document.createElement('button');
-      closeButton.type = 'button';
-      closeButton.textContent = 'Cancel';
-      closeButton.dataset.variant = 'secondary';
-      closeButton.addEventListener('click', callbacks.onClose);
-      panel.append(closeButton);
-    });
+    row.append(segmentedControl);
+    popup.append(row);
+
+    const closeButton = document.createElement('button');
+    closeButton.type = 'button';
+    closeButton.textContent = 'Close';
+    closeButton.dataset.variant = 'secondary';
+    closeButton.addEventListener('click', callbacks.onClose);
+    popup.append(closeButton);
+
+    this.shadowRoot.append(popup);
+    this.settingsPopup = popup;
+  }
+
+  hideSettingsPopup(): void {
+    this.settingsPopup?.remove();
+    this.settingsPopup = null;
   }
 
   showPanel(placement: PickerPanelPlacement, render: PickerPanelRenderer): void {
@@ -238,6 +280,8 @@ export class PickerUi {
 
   destroy(): void {
     this.hideToast();
+    this.hideSettingsPopup();
+    this.hideSettingsButton();
     this.hideShortcutHint();
     this.hidePanel();
     this.hideOverlay();
@@ -258,7 +302,15 @@ const placeWithinViewport = (element: HTMLElement, x: number, y: number): void =
 };
 
 const stopPageEventsInside = (element: HTMLElement): void => {
-  for (const eventName of ['pointerdown', 'pointerup', 'mousedown', 'mouseup', 'click']) {
+  for (const eventName of [
+    'pointerdown',
+    'pointermove',
+    'pointerup',
+    'mousedown',
+    'mouseup',
+    'click',
+    'wheel',
+  ]) {
     element.addEventListener(eventName, (event) => {
       event.preventDefault();
       event.stopPropagation();
@@ -366,6 +418,109 @@ const createStyleElement = (): HTMLStyleElement => {
       background: #e5e7eb;
     }
 
+    [${SETTINGS_BUTTON_ATTRIBUTE}] {
+      position: fixed;
+      right: 12px;
+      bottom: 12px;
+      z-index: 2147483647;
+      box-sizing: border-box;
+      width: 32px;
+      height: 32px;
+      padding: 0;
+      border: 1px solid rgba(15, 23, 42, 0.16);
+      border-radius: 8px;
+      background: #ffffff;
+      color: #111827;
+      box-shadow:
+        0 10px 28px rgba(15, 23, 42, 0.18),
+        0 2px 8px rgba(15, 23, 42, 0.08);
+      cursor: pointer;
+      font: 600 16px/1 ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      letter-spacing: 0;
+    }
+
+    [${SETTINGS_BUTTON_ATTRIBUTE}]:hover {
+      background: #f3f4f6;
+    }
+
+    [${SETTINGS_POPUP_ATTRIBUTE}] {
+      position: fixed;
+      right: 12px;
+      bottom: 52px;
+      z-index: 2147483647;
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 10px;
+      box-sizing: border-box;
+      width: min(340px, calc(100vw - 24px));
+      padding: 12px;
+      border: 1px solid rgba(15, 23, 42, 0.14);
+      border-radius: 8px;
+      background: #ffffff;
+      box-shadow:
+        0 16px 40px rgba(15, 23, 42, 0.18),
+        0 2px 8px rgba(15, 23, 42, 0.1);
+    }
+
+    [${SETTINGS_POPUP_ATTRIBUTE}] [data-element-picker-settings-row] {
+      display: grid;
+      grid-template-columns: minmax(96px, max-content) 1fr;
+      align-items: center;
+      gap: 10px;
+    }
+
+    [${SETTINGS_POPUP_ATTRIBUTE}] [data-element-picker-settings-label] {
+      color: #111827;
+      font: 600 12px/1.2 ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      letter-spacing: 0;
+      white-space: nowrap;
+    }
+
+    [${SETTINGS_POPUP_ATTRIBUTE}] [data-element-picker-segmented-control] {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      overflow: hidden;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      background: #f9fafb;
+    }
+
+    [${SETTINGS_POPUP_ATTRIBUTE}] button {
+      min-height: 30px;
+      padding: 0 9px;
+      border: 0;
+      background: transparent;
+      color: #111827;
+      cursor: pointer;
+      font: 600 12px/1 ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      letter-spacing: 0;
+    }
+
+    [${SETTINGS_POPUP_ATTRIBUTE}] [data-element-picker-segmented-control] button + button {
+      border-left: 1px solid #d1d5db;
+    }
+
+    [${SETTINGS_POPUP_ATTRIBUTE}] button:hover {
+      background: #eef2ff;
+    }
+
+    [${SETTINGS_POPUP_ATTRIBUTE}] button[data-default-format="true"] {
+      background: #111827;
+      color: #ffffff;
+    }
+
+    [${SETTINGS_POPUP_ATTRIBUTE}] button[data-variant="secondary"] {
+      justify-self: end;
+      min-width: 64px;
+      border-radius: 6px;
+      background: #f3f4f6;
+      color: #111827;
+    }
+
+    [${SETTINGS_POPUP_ATTRIBUTE}] button[data-variant="secondary"]:hover {
+      background: #e5e7eb;
+    }
+
     [${SHORTCUT_HINT_ATTRIBUTE}] {
       position: fixed;
       left: 50%;
@@ -387,10 +542,26 @@ const createStyleElement = (): HTMLStyleElement => {
       white-space: normal;
     }
 
+    @media (max-width: 560px) {
+      [${SETTINGS_BUTTON_ATTRIBUTE}] {
+        top: 12px;
+        bottom: auto;
+      }
+
+      [${SETTINGS_POPUP_ATTRIBUTE}] {
+        top: 52px;
+        bottom: auto;
+      }
+
+      [${SETTINGS_POPUP_ATTRIBUTE}] [data-element-picker-settings-row] {
+        grid-template-columns: 1fr;
+      }
+    }
+
     [${TOAST_ATTRIBUTE}] {
       position: fixed;
       right: 16px;
-      bottom: 16px;
+      bottom: 56px;
       z-index: 2147483647;
       max-width: min(360px, calc(100vw - 32px));
       box-sizing: border-box;
