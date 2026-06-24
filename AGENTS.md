@@ -43,6 +43,21 @@ Do not implement these unless explicitly requested:
 - Prioritize predictable copied output over preserving visual styling.
 - Markdown conversion should favor reusable document structure over layout fidelity.
 
+## Branch And Release Workflow
+
+- Do not work directly on `main` for feature, fix, or documentation changes.
+- Create a topic branch before making changes.
+- Merge changes into `main` through a pull request.
+- The GitHub release workflow runs when a pull request is merged into `main`.
+- Add exactly one release label to a pull request when it should produce a GitHub Release:
+  - `release:patch`
+  - `release:minor`
+  - `release:major`
+- If no release label is present, the pull request should not create a release.
+- Release assets are GitHub-only unpacked-extension zip files generated from `dist/`.
+- Do not commit `dist/`, `node_modules/`, or local test copies of the extension.
+- Keep `manifest.config.ts` as the source for the extension manifest, with the version read from `package.json`.
+
 ## Commands
 
 - `npm run dev`: watch build into `dist/`.
