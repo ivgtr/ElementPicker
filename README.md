@@ -1,123 +1,85 @@
 # Element Picker
 
-**Element Picker** is a Chrome extension for visually selecting an HTML element on the current page and copying that element and its descendants as HTML, Markdown, or plain text.
+**Element Picker** は、開いているWebページ上のHTML要素を視覚的に選択し、選択した要素以下の内容を HTML / Markdown / テキスト としてコピーできる Chrome 拡張です。
 
-It is designed as a small page-level utility for quickly extracting just the part of a web page you need, without opening DevTools.
+- ページ上の要素をホバーしてコピー対象を確認
+- 必要な範囲だけを HTML / Markdown / テキストでコピー
+- `W` / `S` / `A` / `D` で親要素・子要素・兄弟要素へ選択範囲を調整
+- クリックまたは `Enter` でコピー対象を確定
+- DevTools を開かずに、ページの一部だけを素早く取り出せる
 
-- Start selection mode from the extension icon
-- Highlight and adjust the current target on the page
-- Copy as HTML, Markdown, or plain text
-- Use direct copy or choose a format each time
-- Adjust the target with keyboard shortcuts
-- Keep settings inside the selection UI, without a popup or options page
+記事、ドキュメント、UI部品、表、カードなど、Webページの一部だけをノート・CMS・AIツールへ渡したいときに使うための小さなユーティリティです。
 
-The product requirements live in [docs/requirements.md](docs/requirements.md).
+## 📦 インストール方法
 
-## Installation
+### GitHub Releasesからインストール
 
-### GitHub Releases
+1. [Releases ページ](https://github.com/ivgtr/ElementPicker/releases) にアクセス
+2. 最新版の **Assets** から `element-picker-vX.Y.Z.zip` をダウンロード
+3. 任意の場所に解凍
+4. Chrome で `chrome://extensions/` を開く
+5. 右上の「**デベロッパーモード**」を **ON** にする
+6. 「**パッケージ化されていない拡張機能を読み込む**」をクリック
+7. 解凍したフォルダを選択
 
-1. Open the [Releases page](../../releases).
-2. Download the latest `element-picker-vX.Y.Z.zip` from **Assets**.
-3. Extract the zip file.
-4. Open `chrome://extensions/` in Chrome.
-5. Enable **Developer mode**.
-6. Click **Load unpacked**.
-7. Select the extracted folder.
+⚠️ **注意**: 開発者モードでインストールするため、Chrome起動時に警告が表示されますが、正常な動作です。
 
-Chrome may show a developer mode warning because this extension is distributed through GitHub Releases.
-
-### Manual Build
+### 手動ビルド
 
 ```bash
+# リポジトリをクローン
+git clone https://github.com/ivgtr/ElementPicker.git
+cd ElementPicker
+
+# 依存関係をインストール
 npm install
+
+# ビルド
 npm run build
+
+# dist/ フォルダをChromeの拡張機能として読み込む
 ```
 
-Then load the `dist/` directory from `chrome://extensions/` with Developer mode enabled.
+## 🚀 使い方
 
-## Usage
+1. Element Picker の拡張機能アイコンをクリック
+2. コピーしたいページ内の要素にカーソルを重ねる
+3. 必要に応じてショートカットキーで選択範囲を調整
+4. クリックまたは `Enter` で確定
+5. 設定に応じて直接コピー、または `HTML` / `Markdown` / `Text` からコピー形式を選択
 
-1. Click the Element Picker extension icon.
-2. Move the pointer over the page element you want to copy.
-3. Adjust the target if needed.
-4. Click or press `Enter` to confirm.
-5. Copy directly, or choose `HTML`, `Markdown`, or `Text` depending on your settings.
+### ショートカット
 
-### Shortcuts
+| キー | 操作 |
+|---|---|
+| `W` | 親要素へ移動 |
+| `S` | 子要素へ移動 |
+| `A` | 前の兄弟要素へ移動 |
+| `D` | 次の兄弟要素へ移動 |
+| `Enter` | 現在の要素を確定 |
+| `Esc` | 選択をキャンセル |
 
-| Key     | Action                                               |
-| ------- | ---------------------------------------------------- |
-| `W`     | Move to parent element.                              |
-| `S`     | Move to child element.                               |
-| `A`     | Move to previous sibling element.                    |
-| `D`     | Move to next sibling element.                        |
-| `Enter` | Confirm the current target.                          |
-| `Esc`   | Cancel selection, or close the settings popup first. |
+## 🚀 開発
 
-Sibling movement loops at the beginning or end of the sibling list.
-
-## Settings
-
-Open the small settings button shown during selection mode.
-
-Available settings:
-
-- **Copy mode**
-  - `Direct copy`: click or press `Enter` to copy immediately using the default format.
-  - `Choose format`: click or press `Enter` to show the format menu.
-- **Default format**
-  - `HTML`
-  - `Markdown`
-  - `Text`
-
-Settings are stored in `chrome.storage.local`.
-
-## Development
+### 開発コマンド
 
 ```bash
-npm install
+# 開発モード（ファイル監視+自動ビルド）
 npm run dev
+
+# プロダクションビルド
+npm run build
+
+# 型チェック
+npm run type-check
+
+# Lint
+npm run lint
+
+# フォーマット
+npm run format
 ```
 
-`npm run dev` runs Vite in watch mode and writes the extension build to `dist/`.
+## 📄 ライセンス
 
-## Scripts
-
-| Command              | Description                                             |
-| -------------------- | ------------------------------------------------------- |
-| `npm run dev`        | Build in watch mode for local extension development.    |
-| `npm run build`      | Run TypeScript and create a production extension build. |
-| `npm run type-check` | Run TypeScript without emitting files.                  |
-| `npm run lint`       | Run ESLint.                                             |
-| `npm run format`     | Format source and documentation with Prettier.          |
-
-## Release Flow
-
-All changes should be made on branches and merged into `main` through pull requests.
-
-GitHub Releases are created automatically when a merged pull request has one of these labels:
-
-- `release:patch`
-- `release:minor`
-- `release:major`
-
-The release workflow:
-
-1. Calculates the next version from the latest `vX.Y.Z` tag.
-2. Updates `package.json` and `package-lock.json`.
-3. Runs type-check, lint, and build.
-4. Creates `element-picker-vX.Y.Z.zip` from the contents of `dist/`.
-5. Creates a GitHub Release and attaches the zip.
-
-If a pull request is merged without a release label, no release is created.
-
-## Stack
-
-- Chrome Extensions Manifest V3
-- Vite
-- `@crxjs/vite-plugin`
-- TypeScript
-- ESLint
-- Prettier
-- Turndown and GFM table support for Markdown conversion
+MIT
