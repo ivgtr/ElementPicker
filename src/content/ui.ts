@@ -1,4 +1,5 @@
 import type { CopyFormat } from '@/shared/messages';
+import type { CopyMode } from './settings';
 
 const ROOT_ATTRIBUTE = 'data-element-picker-root';
 const OVERLAY_ATTRIBUTE = 'data-element-picker-overlay';
@@ -14,6 +15,11 @@ const FORMAT_LABELS: Record<CopyFormat, string> = {
   text: 'Text',
 };
 
+const COPY_MODE_LABELS: Record<CopyMode, string> = {
+  direct: 'Direct copy',
+  confirm: 'Choose format',
+};
+
 type ToastKind = 'success' | 'error' | 'info';
 
 export type SelectedMenuCallbacks = {
@@ -27,12 +33,14 @@ export type SelectedMenuState = {
 };
 
 export type SettingsMenuCallbacks = {
+  onSelectCopyMode: (copyMode: CopyMode) => void;
   onSelectDefaultFormat: (format: CopyFormat) => void;
   onClose: () => void;
 };
 
 export type SettingsMenuState = {
   defaultFormat: CopyFormat;
+  copyMode: CopyMode;
 };
 
 export type SettingsButtonCallbacks = {
@@ -163,34 +171,27 @@ export class PickerUi {
     popup.setAttribute(SETTINGS_POPUP_ATTRIBUTE, '');
     stopPageEventsInside(popup);
 
-    const row = document.createElement('div');
-    row.setAttribute('data-element-picker-settings-row', '');
+    popup.append(
+      createSettingsRow(
+        'Copy mode',
+        'Copy mode',
+        Object.keys(COPY_MODE_LABELS) as CopyMode[],
+        (copyMode) => COPY_MODE_LABELS[copyMode],
+        menuState.copyMode,
+        callbacks.onSelectCopyMode
+      )
+    );
 
-    const label = document.createElement('div');
-    label.textContent = 'Default format';
-    label.setAttribute('data-element-picker-settings-label', '');
-    row.append(label);
-
-    const segmentedControl = document.createElement('div');
-    segmentedControl.setAttribute('data-element-picker-segmented-control', '');
-    segmentedControl.setAttribute('role', 'radiogroup');
-    segmentedControl.setAttribute('aria-label', 'Default format');
-
-    for (const format of Object.keys(FORMAT_LABELS) as CopyFormat[]) {
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.textContent = FORMAT_LABELS[format];
-      button.setAttribute('role', 'radio');
-      button.setAttribute('aria-checked', String(format === menuState.defaultFormat));
-      if (format === menuState.defaultFormat) {
-        button.dataset.defaultFormat = 'true';
-      }
-      button.addEventListener('click', () => callbacks.onSelectDefaultFormat(format));
-      segmentedControl.append(button);
-    }
-
-    row.append(segmentedControl);
-    popup.append(row);
+    popup.append(
+      createSettingsRow(
+        'Default format',
+        'Default format',
+        Object.keys(FORMAT_LABELS) as CopyFormat[],
+        (format) => FORMAT_LABELS[format],
+        menuState.defaultFormat,
+        callbacks.onSelectDefaultFormat
+      )
+    );
 
     const closeButton = document.createElement('button');
     closeButton.type = 'button';
@@ -244,7 +245,8 @@ export class PickerUi {
 
     const shortcutHint = document.createElement('div');
     shortcutHint.setAttribute(SHORTCUT_HINT_ATTRIBUTE, '');
-    shortcutHint.textContent = 'W/S 親子移動   A/D 兄弟移動   Click 選択   Esc キャンセル';
+    shortcutHint.textContent =
+      'W/S 親子移動  A/D 兄弟移動  Enter 選択  Esc キャンセル';
 
     this.shadowRoot.append(shortcutHint);
     this.shortcutHint = shortcutHint;
@@ -299,6 +301,45 @@ const placeWithinViewport = (element: HTMLElement, x: number, y: number): void =
     left: `${Math.max(left, margin)}px`,
     top: `${Math.max(top, margin)}px`,
   });
+};
+
+const createSettingsRow = <T extends string>(
+  labelText: string,
+  ariaLabel: string,
+  options: T[],
+  getLabel: (option: T) => string,
+  selectedValue: T,
+  onSelect: (option: T) => void
+): HTMLDivElement => {
+  const row = document.createElement('div');
+  row.setAttribute('data-element-picker-settings-row', '');
+
+  const label = document.createElement('div');
+  label.textContent = labelText;
+  label.setAttribute('data-element-picker-settings-label', '');
+  row.append(label);
+
+  const segmentedControl = document.createElement('div');
+  segmentedControl.setAttribute('data-element-picker-segmented-control', '');
+  segmentedControl.setAttribute('role', 'radiogroup');
+  segmentedControl.setAttribute('aria-label', ariaLabel);
+  segmentedControl.style.gridTemplateColumns = `repeat(${options.length}, minmax(0, 1fr))`;
+
+  for (const option of options) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = getLabel(option);
+    button.setAttribute('role', 'radio');
+    button.setAttribute('aria-checked', String(option === selectedValue));
+    if (option === selectedValue) {
+      button.dataset.selected = 'true';
+    }
+    button.addEventListener('click', () => onSelect(option));
+    segmentedControl.append(button);
+  }
+
+  row.append(segmentedControl);
+  return row;
 };
 
 const stopPageEventsInside = (element: HTMLElement): void => {
@@ -478,7 +519,6 @@ const createStyleElement = (): HTMLStyleElement => {
 
     [${SETTINGS_POPUP_ATTRIBUTE}] [data-element-picker-segmented-control] {
       display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
       overflow: hidden;
       border: 1px solid #d1d5db;
       border-radius: 8px;
@@ -504,7 +544,7 @@ const createStyleElement = (): HTMLStyleElement => {
       background: #eef2ff;
     }
 
-    [${SETTINGS_POPUP_ATTRIBUTE}] button[data-default-format="true"] {
+    [${SETTINGS_POPUP_ATTRIBUTE}] button[data-selected="true"] {
       background: #111827;
       color: #ffffff;
     }
@@ -523,23 +563,24 @@ const createStyleElement = (): HTMLStyleElement => {
 
     [${SHORTCUT_HINT_ATTRIBUTE}] {
       position: fixed;
-      left: 50%;
-      bottom: 16px;
+      left: 10px;
+      bottom: 8px;
       z-index: 2147483646;
       box-sizing: border-box;
-      max-width: min(520px, calc(100vw - 96px));
-      padding: 7px 10px;
-      border: 1px solid rgba(255, 255, 255, 0.24);
-      border-radius: 8px;
-      background: rgba(17, 24, 39, 0.82);
+      max-width: calc(100vw - 20px);
+      min-height: 24px;
+      padding: 0 9px;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: 5px;
+      background: rgba(17, 24, 39, 0.76);
       color: #ffffff;
-      box-shadow: 0 8px 24px rgba(15, 23, 42, 0.18);
-      font: 600 12px/1.35 ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      box-shadow: 0 1px 4px rgba(15, 23, 42, 0.16);
+      font: 500 11px/24px ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       letter-spacing: 0;
       pointer-events: none;
-      text-align: center;
-      transform: translateX(-50%);
-      white-space: normal;
+      text-align: left;
+      user-select: none;
+      white-space: nowrap;
     }
 
     @media (max-width: 560px) {
@@ -558,7 +599,9 @@ const createStyleElement = (): HTMLStyleElement => {
       }
 
       [${SHORTCUT_HINT_ATTRIBUTE}] {
-        max-width: min(520px, calc(100vw - 24px));
+        max-width: calc(100vw - 20px);
+        overflow: hidden;
+        text-overflow: ellipsis;
       }
     }
 

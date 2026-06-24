@@ -4,6 +4,7 @@ import {
   DEFAULT_PICKER_SETTINGS,
   loadPickerSettings,
   savePickerSettings,
+  type CopyMode,
   type PickerSettings,
 } from './settings';
 import { PickerUi } from './ui';
@@ -22,6 +23,7 @@ export class PickerController {
 
   async start(): Promise<void> {
     const requestId = (this.startRequestId += 1);
+    let didFallbackToDefaultSettings = false;
 
     if (this.ui) {
       this.cleanup();
@@ -31,7 +33,8 @@ export class PickerController {
       this.settings = await loadPickerSettings();
     } catch (error) {
       console.warn('[Element Picker] Failed to load settings.', error);
-      this.settings = DEFAULT_PICKER_SETTINGS;
+      this.settings = { ...DEFAULT_PICKER_SETTINGS };
+      didFallbackToDefaultSettings = true;
     }
 
     if (requestId !== this.startRequestId) {
@@ -45,7 +48,12 @@ export class PickerController {
       onToggle: () => this.toggleSettingsPopup(),
     });
     this.addEventListeners();
-    this.ui.showToast('Select an element to copy.', 'info');
+    this.ui.showToast(
+      didFallbackToDefaultSettings
+        ? 'Failed to load settings. Using defaults.'
+        : 'Select an element to copy.',
+      didFallbackToDefaultSettings ? 'error' : 'info'
+    );
   }
 
   private readonly handlePointerMove = (event: PointerEvent): void => {
@@ -138,6 +146,28 @@ export class PickerController {
       return;
     }
 
+    if (event.key === 'Enter') {
+      if (this.ui?.isPickerEvent(event) || isEditableEventTarget(event.target)) {
+        return;
+      }
+
+      if (this.state !== 'selecting') {
+        return;
+      }
+
+      const target = this.hoveredElement;
+
+      if (!target) {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      this.confirmSelection(target);
+      return;
+    }
+
     if (event.key !== 'Escape') {
       return;
     }
@@ -167,10 +197,16 @@ export class PickerController {
     }
   };
 
-  private confirmSelection(element: HTMLElement, position: { x: number; y: number }): void {
+  private confirmSelection(element: HTMLElement, position?: { x: number; y: number }): void {
     this.selectedElement = element;
     this.state = 'selected';
     this.ui?.showOverlay(element);
+
+    if (this.settings.copyMode === 'direct') {
+      void this.copySelection(this.settings.defaultFormat);
+      return;
+    }
+
     this.showSelectedMenu(position);
   }
 
@@ -214,8 +250,14 @@ export class PickerController {
 
   private showSettingsPopup(): void {
     this.ui?.showSettingsPopup(
-      { defaultFormat: this.settings.defaultFormat },
       {
+        defaultFormat: this.settings.defaultFormat,
+        copyMode: this.settings.copyMode,
+      },
+      {
+        onSelectCopyMode: (copyMode) => {
+          void this.updateCopyMode(copyMode);
+        },
         onSelectDefaultFormat: (format) => {
           void this.updateDefaultFormat(format);
         },
@@ -225,12 +267,20 @@ export class PickerController {
   }
 
   private async updateDefaultFormat(defaultFormat: CopyFormat): Promise<void> {
+    await this.updateSettings({ defaultFormat });
+  }
+
+  private async updateCopyMode(copyMode: CopyMode): Promise<void> {
+    await this.updateSettings({ copyMode });
+  }
+
+  private async updateSettings(settingsPatch: Partial<PickerSettings>): Promise<void> {
     if (!this.settingsOpen) {
       return;
     }
 
     const previousSettings = this.settings;
-    this.settings = { ...this.settings, defaultFormat };
+    this.settings = { ...this.settings, ...settingsPatch };
     this.showSettingsPopup();
     this.refreshSelectedMenu();
 

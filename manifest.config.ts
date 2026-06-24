@@ -7,7 +7,7 @@ export default defineManifest({
   version: packageJson.version,
   description:
     'Select an element on the current page and copy it as HTML, Markdown, or plain text.',
-  permissions: ['activeTab', 'clipboardWrite'],
+  permissions: ['activeTab', 'clipboardWrite', 'storage'],
   action: {
     default_title: 'Pick an element',
     default_icon: {
