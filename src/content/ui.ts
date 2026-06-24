@@ -29,7 +29,6 @@ export type SelectedMenuCallbacks = {
 
 export type SelectedMenuState = {
   targetLabel: string;
-  defaultFormat: CopyFormat;
 };
 
 export type SettingsMenuCallbacks = {
@@ -120,11 +119,6 @@ export class PickerUi {
         const button = document.createElement('button');
         button.type = 'button';
         button.textContent = FORMAT_LABELS[format];
-        if (format === menuState.defaultFormat) {
-          button.setAttribute('aria-current', 'true');
-          button.dataset.defaultFormat = 'true';
-          button.title = 'Default format';
-        }
         button.addEventListener('click', () => callbacks.onSelectFormat(format));
         panel.append(button);
       }
@@ -512,15 +506,6 @@ const createStyleElement = (): HTMLStyleElement => {
       width: 28px;
       padding: 0;
       font-size: 13px;
-    }
-
-    [${PANEL_ATTRIBUTE}] button[data-default-format="true"] {
-      border-color: var(--ep-accent);
-      background: var(--ep-accent-soft);
-      color: #f0c3b9;
-      box-shadow:
-        inset 0 0 0 1px rgba(208, 100, 78, 0.26),
-        0 0 0 1px rgba(178, 74, 59, 0.08);
     }
 
     [${PANEL_ATTRIBUTE}] button:disabled,

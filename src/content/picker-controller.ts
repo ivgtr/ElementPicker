@@ -219,7 +219,6 @@ export class PickerController {
       { target: this.selectedElement, position },
       {
         targetLabel: createElementLabel(this.selectedElement),
-        defaultFormat: this.settings.defaultFormat,
       },
       {
         onSelectFormat: (format) => {
@@ -282,7 +281,6 @@ export class PickerController {
     const previousSettings = this.settings;
     this.settings = { ...this.settings, ...settingsPatch };
     this.showSettingsPopup();
-    this.refreshSelectedMenu();
 
     try {
       await savePickerSettings(this.settings);
@@ -290,7 +288,6 @@ export class PickerController {
       console.warn('[Element Picker] Failed to save settings.', error);
       this.settings = previousSettings;
       this.showSettingsPopup();
-      this.refreshSelectedMenu();
       this.ui?.showToast('Failed to save settings.', 'error');
     }
   }
@@ -302,12 +299,6 @@ export class PickerController {
 
     this.settingsOpen = false;
     this.ui?.hideSettingsPopup();
-  }
-
-  private refreshSelectedMenu(): void {
-    if (this.state === 'selected') {
-      this.showSelectedMenu();
-    }
   }
 
   private moveSelectionWithShortcut(direction: SelectionDirection): void {
@@ -351,7 +342,7 @@ export class PickerController {
     try {
       const text = createCopyText(this.selectedElement, format);
       await copyTextToClipboard(text);
-      this.ui?.showToast('Copied to clipboard.', 'success');
+      this.ui?.showToast(`${getCopyFormatLabel(format)} copied`, 'success');
       this.finishAfterToast();
     } catch (error) {
       console.warn('[Element Picker] Failed to copy selection.', error);
@@ -455,6 +446,17 @@ const createElementLabel = (element: HTMLElement): string => {
   }
 
   return parts.join('');
+};
+
+const getCopyFormatLabel = (format: CopyFormat): string => {
+  switch (format) {
+    case 'html':
+      return 'HTML';
+    case 'markdown':
+      return 'Markdown';
+    case 'text':
+      return 'Text';
+  }
 };
 
 const getSelectionDirection = (event: KeyboardEvent): SelectionDirection | null => {
