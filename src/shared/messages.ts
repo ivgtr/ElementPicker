@@ -1,9 +1,9 @@
-export const START_ELEMENT_PICKER = 'element-picker:start';
+export const TOGGLE_ELEMENT_PICKER = 'element-picker:toggle';
 
 export type CopyFormat = 'html' | 'markdown' | 'text';
 
 export type ElementPickerMessage = {
-  type: typeof START_ELEMENT_PICKER;
+  type: typeof TOGGLE_ELEMENT_PICKER;
 };
 
 export const isElementPickerMessage = (
@@ -13,6 +13,6 @@ export const isElementPickerMessage = (
     typeof message === 'object' &&
     message !== null &&
     'type' in message &&
-    message.type === START_ELEMENT_PICKER
+    message.type === TOGGLE_ELEMENT_PICKER
   );
 };

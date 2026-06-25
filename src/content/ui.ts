@@ -251,7 +251,7 @@ export class PickerUi {
     const shortcutHint = document.createElement('div');
     shortcutHint.setAttribute(SHORTCUT_HINT_ATTRIBUTE, '');
     shortcutHint.textContent =
-      'W/S 親子移動  A/D 兄弟移動  Enter 選択  Esc キャンセル';
+      'W/S 親子移動  A/D 兄弟移動  Enter 選択  Esc/右クリック キャンセル';
 
     this.shadowRoot.append(shortcutHint);
     this.shortcutHint = shortcutHint;

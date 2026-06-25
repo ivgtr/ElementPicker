@@ -14,12 +14,12 @@ chrome.runtime.onMessage.addListener((message: unknown) => {
     return;
   }
 
-  void startPicker();
+  void togglePicker();
 });
 
-const startPicker = async (): Promise<void> => {
+const togglePicker = async (): Promise<void> => {
   const { PickerController } = await import('./picker-controller');
 
   pickerWindow[globalKey] ??= new PickerController();
-  await pickerWindow[globalKey]?.start();
+  await pickerWindow[globalKey]?.toggle();
 };
