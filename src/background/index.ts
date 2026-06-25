@@ -1,4 +1,4 @@
-import { START_ELEMENT_PICKER } from '@/shared/messages';
+import { TOGGLE_ELEMENT_PICKER } from '@/shared/messages';
 
 chrome.action.onClicked.addListener(async (tab) => {
   if (!tab.id) {
@@ -6,8 +6,8 @@ chrome.action.onClicked.addListener(async (tab) => {
   }
 
   try {
-    await chrome.tabs.sendMessage(tab.id, { type: START_ELEMENT_PICKER });
+    await chrome.tabs.sendMessage(tab.id, { type: TOGGLE_ELEMENT_PICKER });
   } catch (error) {
-    console.warn('[Element Picker] Failed to start element picker.', error);
+    console.warn('[Element Picker] Failed to toggle element picker.', error);
   }
 });

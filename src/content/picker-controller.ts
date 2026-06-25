@@ -21,6 +21,17 @@ export class PickerController {
   private settingsOpen = false;
   private startRequestId = 0;
 
+  async toggle(): Promise<void> {
+    if (this.state === 'selecting' || this.state === 'selected') {
+      this.cancel();
+      return;
+    }
+
+    if (this.state === 'idle') {
+      await this.start();
+    }
+  }
+
   async start(): Promise<void> {
     const requestId = (this.startRequestId += 1);
     let didFallbackToDefaultSettings = false;
@@ -114,6 +125,17 @@ export class PickerController {
     event.preventDefault();
     event.stopPropagation();
     event.stopImmediatePropagation();
+  };
+
+  private readonly handleContextMenu = (event: MouseEvent): void => {
+    if (!this.shouldBlockPageEvents() || this.ui?.isPickerEvent(event)) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    event.stopImmediatePropagation();
+    this.cancel();
   };
 
   private readonly handleKeyDown = (event: KeyboardEvent): void => {
@@ -407,6 +429,7 @@ export class PickerController {
     document.addEventListener('mousedown', this.suppressPagePointerEvent, true);
     document.addEventListener('mouseup', this.suppressPagePointerEvent, true);
     document.addEventListener('click', this.handleClick, true);
+    document.addEventListener('contextmenu', this.handleContextMenu, true);
     document.addEventListener('keydown', this.handleKeyDown, true);
     window.addEventListener('scroll', this.handleViewportChange, true);
     window.addEventListener('resize', this.handleViewportChange, true);
@@ -417,6 +440,7 @@ export class PickerController {
     document.removeEventListener('mousedown', this.suppressPagePointerEvent, true);
     document.removeEventListener('mouseup', this.suppressPagePointerEvent, true);
     document.removeEventListener('click', this.handleClick, true);
+    document.removeEventListener('contextmenu', this.handleContextMenu, true);
     document.removeEventListener('keydown', this.handleKeyDown, true);
     window.removeEventListener('scroll', this.handleViewportChange, true);
     window.removeEventListener('resize', this.handleViewportChange, true);
